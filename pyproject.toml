@@ -1,0 +1,32 @@
+[project]
+name = "reporoot"
+version = "0.1.0"
+description = "Reporoot workspace manager"
+requires-python = ">=3.10"
+dependencies = ["pyyaml>=6.0"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pyright>=1.1",
+    "types-pyyaml>=6.0",
+]
+
+[project.scripts]
+reporoot = "reporoot.cli:main"
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pyright]
+pythonVersion = "3.10"
+typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
