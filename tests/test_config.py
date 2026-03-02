@@ -118,10 +118,7 @@ class TestCustomRegistry:
         """Custom registries from config file should be recognized."""
         config_dir = tmp_path / "config" / "reporoot"
         config_dir.mkdir(parents=True)
-        (config_dir / "config.yaml").write_text(
-            "registries:\n"
-            "  internal: git.mycompany.com\n"
-        )
+        (config_dir / "config.yaml").write_text("registries:\n  internal: git.mycompany.com\n")
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
 
         # Should now recognize the custom domain

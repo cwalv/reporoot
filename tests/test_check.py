@@ -91,11 +91,7 @@ class TestCheck:
         project_dir = workspace / "projects" / "myproject"
         project_dir.mkdir(parents=True)
         (project_dir / "myproject.repos").write_text(
-            "repositories:\n"
-            "  github/a/lib:\n"
-            "    type: git\n"
-            "    url: https://github.com/a/lib.git\n"
-            "    version: main\n"
+            "repositories:\n  github/a/lib:\n    type: git\n    url: https://github.com/a/lib.git\n    version: main\n"
         )
 
         with pytest.raises(SystemExit):

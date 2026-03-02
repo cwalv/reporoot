@@ -44,15 +44,14 @@ class NpmWorkspaces:
     def check(self, ctx: IntegrationContext) -> list[Issue]:
         issues: list[Issue] = []
         # Check if npm is available
-        node_paths = [
-            p for p in ctx.repos
-            if (ctx.root / p).is_dir() and (ctx.root / p / "package.json").exists()
-        ]
+        node_paths = [p for p in ctx.repos if (ctx.root / p).is_dir() and (ctx.root / p / "package.json").exists()]
         if node_paths and not shutil.which("npm"):
-            issues.append(Issue(
-                integration=self.name,
-                message="npm not found on PATH (needed for npm workspaces)",
-            ))
+            issues.append(
+                Issue(
+                    integration=self.name,
+                    message="npm not found on PATH (needed for npm workspaces)",
+                )
+            )
         return issues
 
     def _remove(self, path: Path) -> None:

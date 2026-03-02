@@ -7,8 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from conftest import make_repo_with_file
+
 from reporoot.activate import deactivate, run
 from reporoot.integrations.registry import run_activate, run_deactivate
 
@@ -50,7 +50,9 @@ class TestActivate:
             "    role: primary\n"
         )
         make_repo_with_file(
-            workspace, "github/a/svc", "pyproject.toml",
+            workspace,
+            "github/a/svc",
+            "pyproject.toml",
             '[project]\nname = "svc"\nversion = "0.1.0"\n',
         )
 
@@ -76,7 +78,9 @@ class TestActivate:
             "    role: primary\n"
         )
         make_repo_with_file(
-            workspace, "github/a/svc", "pyproject.toml",
+            workspace,
+            "github/a/svc",
+            "pyproject.toml",
             '[project]\nname = "svc"\nversion = "0.1.0"\n',
         )
 
@@ -209,9 +213,7 @@ class TestRegistryDispatch:
         ws_target = workspace / "projects" / "test" / ".reporoot-derived" / "test.code-workspace"
         ws_target.parent.mkdir(parents=True)
         ws_target.write_text("{}")
-        (workspace / "test.code-workspace").symlink_to(
-            ws_target.relative_to(workspace)
-        )
+        (workspace / "test.code-workspace").symlink_to(ws_target.relative_to(workspace))
 
         run_deactivate(workspace)
 

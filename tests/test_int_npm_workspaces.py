@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from conftest import make_repo_with_file
+
 from reporoot.integrations.base import IntegrationContext
 from reporoot.integrations.npm_workspaces import NpmWorkspaces
 

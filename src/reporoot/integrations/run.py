@@ -52,7 +52,8 @@ def run_tool(cmd: list[str], *, cwd: Path) -> int:
             print(f"{prefix}{line}", end="", file=dest)  # type: ignore[call-overload]
 
     t_err = threading.Thread(
-        target=_stream, args=(proc.stderr, err_prefix, sys.stderr),
+        target=_stream,
+        args=(proc.stderr, err_prefix, sys.stderr),
     )
     t_err.start()
 

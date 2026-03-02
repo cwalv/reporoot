@@ -240,11 +240,7 @@ class TestAppendEntry:
     def test_appends_to_existing(self, tmp_path: Path):
         f = tmp_path / "existing.repos"
         f.write_text(
-            "repositories:\n"
-            "  github/a/b:\n"
-            "    type: git\n"
-            "    url: https://github.com/a/b.git\n"
-            "    version: main\n"
+            "repositories:\n  github/a/b:\n    type: git\n    url: https://github.com/a/b.git\n    version: main\n"
         )
         append_entry(f, "github/c/d", "https://github.com/c/d.git", "main")
         repos = read_repos(f)
@@ -254,11 +250,7 @@ class TestAppendEntry:
     def test_skips_duplicate(self, tmp_path: Path, capsys):
         f = tmp_path / "dup.repos"
         f.write_text(
-            "repositories:\n"
-            "  github/a/b:\n"
-            "    type: git\n"
-            "    url: https://github.com/a/b.git\n"
-            "    version: main\n"
+            "repositories:\n  github/a/b:\n    type: git\n    url: https://github.com/a/b.git\n    version: main\n"
         )
         append_entry(f, "github/a/b", "https://github.com/a/b.git", "main")
         captured = capsys.readouterr()
@@ -267,8 +259,12 @@ class TestAppendEntry:
     def test_role_field(self, tmp_path: Path):
         f = tmp_path / "role.repos"
         append_entry(
-            f, "github/a/b", "https://github.com/a/b.git", "main",
-            role="primary", note="our code",
+            f,
+            "github/a/b",
+            "https://github.com/a/b.git",
+            "main",
+            role="primary",
+            note="our code",
         )
         content = f.read_text()
         assert "    role: primary" in content

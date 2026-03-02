@@ -25,7 +25,9 @@ def _is_url(source: str) -> bool:
 
 
 def _import_one(
-    root: Path, local_path: str, info: dict,
+    root: Path,
+    local_path: str,
+    info: dict,
 ) -> tuple[str, str]:
     """Import one repo. Returns (local_path, status_message)."""
     url = info.get("url", "")
@@ -55,9 +57,7 @@ def run(source: str) -> None:
             owner, project = parts
             url, _ = resolve_shorthand(source)
         else:
-            raise SystemExit(
-                f"fatal: expected URL, registry/owner/project, or owner/project, got: {source}"
-            )
+            raise SystemExit(f"fatal: expected URL, registry/owner/project, or owner/project, got: {source}")
 
     root = find_root()
     target = root / "projects" / project
@@ -93,10 +93,7 @@ def run(source: str) -> None:
     # Import repos in parallel
     errors = 0
     with ThreadPoolExecutor(max_workers=10) as pool:
-        futures = {
-            pool.submit(_import_one, root, path, info): path
-            for path, info in repos.items()
-        }
+        futures = {pool.submit(_import_one, root, path, info): path for path, info in repos.items()}
         for future in as_completed(futures):
             path, status = future.result()
             print(f"    {path}: {status}")

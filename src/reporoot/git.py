@@ -131,6 +131,7 @@ def clone_or_update(
 
 def _urls_match(a: str, b: str) -> bool:
     """Loose URL comparison (ignore trailing .git and protocol differences)."""
+
     def normalize(u: str) -> str:
         u = u.rstrip("/").removesuffix(".git")
         # git@github.com:owner/repo -> github.com/owner/repo
@@ -139,4 +140,5 @@ def _urls_match(a: str, b: str) -> bool:
         if "://" in u:
             u = u.split("://", 1)[1]
         return u.lower()
+
     return normalize(a) == normalize(b)

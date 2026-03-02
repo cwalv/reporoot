@@ -45,10 +45,7 @@ def _lock_project(root: Path, project: str, repos_file: Path) -> None:
     errors: list[str] = []
 
     with ThreadPoolExecutor(max_workers=10) as pool:
-        futures = {
-            pool.submit(_export_one, root, path): path
-            for path in repos
-        }
+        futures = {pool.submit(_export_one, root, path): path for path in repos}
         for future in as_completed(futures):
             path, data = future.result()
             if isinstance(data, str):
@@ -62,7 +59,7 @@ def _lock_project(root: Path, project: str, repos_file: Path) -> None:
     for path in sorted(results):
         data = results[path]
         lines.append(f"  {path}:")
-        lines.append(f"    type: git")
+        lines.append("    type: git")
         lines.append(f"    url: {data['url']}")
         lines.append(f"    version: {data['version']}")
     output = "\n".join(lines) + "\n"

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
-from urllib.parse import urlparse
 
 
 def find_root(start: Path | None = None) -> Path:
@@ -142,6 +140,7 @@ def parse_github_url(url: str) -> tuple[str, str]:
     Deprecated: use reporoot.config.parse_repo_url() for multi-registry support.
     """
     from reporoot.config import parse_repo_url
+
     _registry, owner, repo = parse_repo_url(url)
     return owner, repo
 
@@ -152,6 +151,7 @@ def normalize_github_url(owner: str, repo: str) -> str:
     Deprecated: use reporoot.config.normalize_repo_url() for multi-registry support.
     """
     from reporoot.config import normalize_repo_url
+
     return normalize_repo_url("github", owner, repo)
 
 
@@ -198,7 +198,7 @@ def _format_entry(local_path: str, url: str, version: str, role: str | None = No
     if note:
         comment = f"  # {note}"
     lines = [f"  {local_path}:{comment}"]
-    lines.append(f"    type: git")
+    lines.append("    type: git")
     lines.append(f"    url: {url}")
     lines.append(f"    version: {version}")
     if role:

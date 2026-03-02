@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from conftest import make_repo_with_file
+
 from reporoot.integrations.base import IntegrationContext
 from reporoot.integrations.go_work import GoWork
 

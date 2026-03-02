@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 from reporoot.integrations.base import IntegrationContext
-from reporoot.integrations.vscode_workspace import VscodeWorkspace, _EXT, _GEN_DIR
+from reporoot.integrations.vscode_workspace import _EXT, _GEN_DIR, VscodeWorkspace
 
 
 def _ctx(
@@ -145,7 +145,8 @@ class TestVscodeWorkspaceActivate:
     def test_files_exclude_hides_non_active_projects(self, workspace: Path):
         repos = _two_repos(workspace)
         ctx = _ctx(
-            workspace, repos,
+            workspace,
+            repos,
             all_project_paths=["test", "other-project", "third"],
         )
 

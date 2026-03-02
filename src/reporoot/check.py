@@ -60,10 +60,7 @@ def _check_stale_lock(root: Path, project: str, repos_file: Path) -> list[str]:
         except Exception:
             continue
         if lock_version and current and lock_version != current:
-            issues.append(
-                f"  stale lock: {repo_path} "
-                f"(lock={lock_version[:12]}, HEAD={current[:12]})"
-            )
+            issues.append(f"  stale lock: {repo_path} (lock={lock_version[:12]}, HEAD={current[:12]})")
     return issues
 
 

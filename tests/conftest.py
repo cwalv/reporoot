@@ -21,7 +21,9 @@ def git_repo(tmp_path: Path) -> Path:
     subprocess.run(["git", "commit", "-m", "init"], cwd=repo, capture_output=True, check=True)
     subprocess.run(
         ["git", "remote", "add", "origin", "https://github.com/test-owner/test-repo.git"],
-        cwd=repo, capture_output=True, check=True,
+        cwd=repo,
+        capture_output=True,
+        check=True,
     )
     return repo
 
@@ -48,12 +50,13 @@ def workspace_with_project(workspace: Path, git_repo: Path) -> tuple[Path, Path]
     target.parent.mkdir(parents=True)
     subprocess.run(
         ["git", "clone", "--local", str(git_repo), str(target)],
-        capture_output=True, check=True,
+        capture_output=True,
+        check=True,
     )
     subprocess.run(
-        ["git", "-C", str(target), "remote", "set-url", "origin",
-         "https://github.com/test-owner/test-repo.git"],
-        capture_output=True, check=True,
+        ["git", "-C", str(target), "remote", "set-url", "origin", "https://github.com/test-owner/test-repo.git"],
+        capture_output=True,
+        check=True,
     )
 
     # Register in project .repos file

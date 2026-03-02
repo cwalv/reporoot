@@ -14,6 +14,8 @@ jobs:
         with:
           python-version: "3.13"
       - run: uv sync
+      - run: uv run ruff check
+      - run: uv run ruff format --check
       - run: uv run pytest
       - run: uv run pyright
 
@@ -22,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -30,3 +33,6 @@ jobs:
           python-version: "3.13"
       - run: uv build
       - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true

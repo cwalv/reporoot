@@ -8,10 +8,9 @@ Usage:
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import shutil
 import sys
+from pathlib import Path
 
 from reporoot.config import registry_names
 from reporoot.integrations.registry import run_activate, run_deactivate

@@ -9,9 +9,9 @@ from reporoot.integrations.base import Integration, IntegrationContext, Issue
 
 def _all_integrations() -> list[Integration]:
     """Return instances of all built-in integrations."""
-    from reporoot.integrations.npm_workspaces import NpmWorkspaces
-    from reporoot.integrations.go_work import GoWork
     from reporoot.integrations.gita import Gita
+    from reporoot.integrations.go_work import GoWork
+    from reporoot.integrations.npm_workspaces import NpmWorkspaces
     from reporoot.integrations.uv_workspace import UvWorkspace
     from reporoot.integrations.vscode_workspace import VscodeWorkspace
 

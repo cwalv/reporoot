@@ -19,9 +19,7 @@ def _workspace_filename(project: str) -> str:
     return Path(project).name + _EXT
 
 
-def _collapse_excludes(
-    excluded_repos: set[str], all_repos_on_disk: set[str]
-) -> set[str]:
+def _collapse_excludes(excluded_repos: set[str], all_repos_on_disk: set[str]) -> set[str]:
     """Collapse exclude paths up the directory hierarchy.
 
     If all repos under an owner (registry/owner) are excluded, replace them
@@ -115,8 +113,7 @@ class VscodeWorkspace:
         link.symlink_to(canonical.relative_to(ctx.root))
 
         n_excluded = len(excludes)
-        print(f"  wrote projects/{ctx.project}/{_GEN_DIR}/{filename}"
-              f" ({n_excluded} excluded)")
+        print(f"  wrote projects/{ctx.project}/{_GEN_DIR}/{filename} ({n_excluded} excluded)")
 
     def deactivate(self, root: Path) -> None:
         self._cleanup_old_symlinks(root)
@@ -125,32 +122,27 @@ class VscodeWorkspace:
         issues: list[Issue] = []
         filename = _workspace_filename(ctx.project)
         link = ctx.root / filename
-        expected = (
-            Path("projects") / ctx.project / _GEN_DIR / filename
-        )
+        expected = Path("projects") / ctx.project / _GEN_DIR / filename
         if not link.is_symlink():
-            issues.append(Issue(
-                integration=self.name,
-                message=f"{filename} symlink missing at workspace root",
-            ))
+            issues.append(
+                Issue(
+                    integration=self.name,
+                    message=f"{filename} symlink missing at workspace root",
+                )
+            )
         elif Path(os.readlink(link)) != expected:
-            issues.append(Issue(
-                integration=self.name,
-                message=(
-                    f"{filename} symlink points to {os.readlink(link)}, "
-                    f"expected {expected}"
-                ),
-            ))
+            issues.append(
+                Issue(
+                    integration=self.name,
+                    message=(f"{filename} symlink points to {os.readlink(link)}, expected {expected}"),
+                )
+            )
         return issues
 
     @staticmethod
     def _cleanup_old_symlinks(root: Path) -> None:
         """Remove any .code-workspace symlinks at root that point into .reporoot-derived/."""
         for entry in root.iterdir():
-            if (
-                entry.is_symlink()
-                and entry.name.endswith(_EXT)
-                and _GEN_DIR in str(os.readlink(entry))
-            ):
+            if entry.is_symlink() and entry.name.endswith(_EXT) and _GEN_DIR in str(os.readlink(entry)):
                 entry.unlink()
                 print(f"  removed {entry.name} symlink")

@@ -56,8 +56,10 @@ class Gita:
     def check(self, ctx: IntegrationContext) -> list[Issue]:
         issues: list[Issue] = []
         if not shutil.which("gita"):
-            issues.append(Issue(
-                integration=self.name,
-                message="gita not found on PATH (install with 'pip install gita')",
-            ))
+            issues.append(
+                Issue(
+                    integration=self.name,
+                    message="gita not found on PATH (install with 'pip install gita')",
+                )
+            )
         return issues

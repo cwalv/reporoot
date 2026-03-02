@@ -23,8 +23,18 @@ def _make_dirs(workspace: Path, repos: dict[str, dict]) -> None:
 class TestGitaActivate:
     def test_generates_repos_csv(self, workspace: Path):
         repos = {
-            "github/a/server": {"type": "git", "url": "https://github.com/a/server.git", "version": "main", "role": "primary"},
-            "github/a/lib": {"type": "git", "url": "https://github.com/a/lib.git", "version": "main", "role": "dependency"},
+            "github/a/server": {
+                "type": "git",
+                "url": "https://github.com/a/server.git",
+                "version": "main",
+                "role": "primary",
+            },
+            "github/a/lib": {
+                "type": "git",
+                "url": "https://github.com/a/lib.git",
+                "version": "main",
+                "role": "dependency",
+            },
         }
         _make_dirs(workspace, repos)
 
@@ -41,8 +51,18 @@ class TestGitaActivate:
 
     def test_generates_groups_csv(self, workspace: Path):
         repos = {
-            "github/a/server": {"type": "git", "url": "https://github.com/a/server.git", "version": "main", "role": "primary"},
-            "github/a/lib": {"type": "git", "url": "https://github.com/a/lib.git", "version": "main", "role": "dependency"},
+            "github/a/server": {
+                "type": "git",
+                "url": "https://github.com/a/server.git",
+                "version": "main",
+                "role": "primary",
+            },
+            "github/a/lib": {
+                "type": "git",
+                "url": "https://github.com/a/lib.git",
+                "version": "main",
+                "role": "dependency",
+            },
         }
         _make_dirs(workspace, repos)
 

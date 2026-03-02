@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from conftest import make_repo_with_file
+
 from reporoot.integrations.base import IntegrationContext
 from reporoot.integrations.uv_workspace import UvWorkspace
 
@@ -16,11 +17,15 @@ def _ctx(workspace: Path, repos: dict[str, dict], config: dict | None = None) ->
 class TestUvWorkspaceActivate:
     def test_generates_pyproject_toml(self, workspace: Path):
         make_repo_with_file(
-            workspace, "github/a/svc", "pyproject.toml",
+            workspace,
+            "github/a/svc",
+            "pyproject.toml",
             '[project]\nname = "svc"\nversion = "0.1.0"\n',
         )
         make_repo_with_file(
-            workspace, "github/a/lib", "pyproject.toml",
+            workspace,
+            "github/a/lib",
+            "pyproject.toml",
             '[project]\nname = "lib"\nversion = "0.1.0"\n',
         )
 
@@ -39,7 +44,9 @@ class TestUvWorkspaceActivate:
 
     def test_skips_repos_without_pyproject(self, workspace: Path):
         make_repo_with_file(
-            workspace, "github/a/svc", "pyproject.toml",
+            workspace,
+            "github/a/svc",
+            "pyproject.toml",
             '[project]\nname = "svc"\n',
         )
         repo_dir = workspace / "github" / "a" / "web"

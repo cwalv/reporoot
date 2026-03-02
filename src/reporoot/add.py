@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from reporoot.config import normalize_repo_url, parse_repo_url, url_to_local_path
+from reporoot.config import normalize_repo_url, parse_repo_url
 from reporoot.git import GitError, clone, clone_local, default_branch, remote_url
 from reporoot.integrations.registry import run_activate
 from reporoot.workspace import (

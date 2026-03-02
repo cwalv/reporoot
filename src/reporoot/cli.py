@@ -82,11 +82,13 @@ def main(argv: list[str] | None = None) -> None:
         formatter_class=_raw,
     )
     deactivate_p.add_argument(
-        "--hard", action="store_true",
+        "--hard",
+        action="store_true",
         help="Also remove all non-repo content at root (node_modules, .venv, lock files, etc.)",
     )
     deactivate_p.add_argument(
-        "--force", action="store_true",
+        "--force",
+        action="store_true",
         help="With --hard, skip confirmation prompts",
     )
 
@@ -137,6 +139,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command is None:
         from reporoot.workspace import active_project, find_root
+
         try:
             root = find_root()
             project = active_project(root)
@@ -152,9 +155,11 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "activate":
         from reporoot.activate import run
+
         run(project=args.project)
     elif args.command == "add":
         from reporoot.add import run
+
         run(
             source=args.source,
             project=args.project,
@@ -164,19 +169,25 @@ def main(argv: list[str] | None = None) -> None:
         )
     elif args.command == "deactivate":
         from reporoot.activate import deactivate
+
         deactivate(hard=args.hard, force=args.force)
     elif args.command == "resolve":
         from reporoot.workspace import find_root
+
         print(find_root())
     elif args.command == "fetch":
         from reporoot.fetch import run
+
         run(source=args.source)
     elif args.command == "lock":
         from reporoot.lock import run
+
         run()
     elif args.command == "lock-all":
         from reporoot.lock import run_all
+
         run_all()
     elif args.command == "check":
         from reporoot.check import run
+
         run()
