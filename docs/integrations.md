@@ -1,4 +1,8 @@
-# Integrations
+---
+title: Integrations
+layout: default
+nav_order: 3
+---
 
 Rather than hardcoding knowledge of each ecosystem and tool, `reporoot` uses **integrations** — pluggable units that each know how to derive config for one tool from the repo list. Each integration participates in two hook points:
 

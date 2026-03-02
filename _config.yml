@@ -1,0 +1,15 @@
+title: reporoot
+description: Monorepo ergonomics for multi-repo workspaces
+theme: just-the-docs
+url: https://cwalv.github.io
+baseurl: /reporoot
+aux_links:
+  GitHub: https://github.com/cwalv/reporoot
+exclude:
+  - src/
+  - tests/
+  - .venv/
+  - .pytest_cache/
+  - "*.py"
+  - pyproject.toml
+  - uv.lock

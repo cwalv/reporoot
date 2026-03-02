@@ -1,4 +1,8 @@
-# Reporoot
+---
+title: Conventions
+layout: default
+nav_order: 2
+---
 
 Software lives in multiple repos. Even a monorepo has upstream dependencies, vendored libraries, and reference code whose source of truth is elsewhere. The code you work with always spans repos you own, repos you forked, and repos you just read.
 

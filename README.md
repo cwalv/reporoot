@@ -1,4 +1,9 @@
-# reporoot
+---
+title: Home
+layout: home
+nav_order: 1
+permalink: /
+---
 
 **Monorepo ergonomics without the monorepo.**
 
