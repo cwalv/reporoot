@@ -46,12 +46,13 @@ class TestAddFromLocal:
         # No reporoot.repos should exist
         assert not (workspace / "reporoot.repos").exists()
 
-    def test_add_duplicate_raises(self, workspace_with_project: tuple[Path, Path]):
+    def test_add_existing_repo_skips_clone(self, workspace_with_project: tuple[Path, Path]):
         workspace, repo = workspace_with_project
         os.chdir(workspace)
-        # test-owner/test-repo already exists from fixture
-        with pytest.raises(SystemExit, match="already exists"):
-            run(source="https://github.com/test-owner/test-repo.git")
+        # test-owner/test-repo already exists from fixture — should skip clone and register
+        run(source="https://github.com/test-owner/test-repo.git", role="primary")
+        project_repos = read_repos(workspace / "projects" / "test-project" / "test-project.repos")
+        assert "github/test-owner/test-repo" in project_repos
 
     def test_add_requires_active_project(self, workspace: Path, git_repo: Path):
         os.chdir(workspace)

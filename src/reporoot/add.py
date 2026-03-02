@@ -65,22 +65,21 @@ def run(
         local_path = f"{registry}/{owner}/{repo}"
         target = root / local_path
 
-    if target.exists():
-        raise SystemExit(f"fatal: target already exists: {target}")
-
-    # Clone or move
+    # Clone or move (skip if already on disk)
     print(f"add: {local_path}")
-    target.parent.mkdir(parents=True, exist_ok=True)
-
-    try:
-        if source_path:
-            print(f"  git clone --local {source_path} -> {target}")
-            clone_local(source_path, target, canonical_url)
-        else:
-            print(f"  git clone {url} -> {target}")
-            clone(url, target)
-    except GitError as e:
-        raise SystemExit(f"fatal: {e}")
+    if target.exists():
+        print("  already on disk, skipping clone")
+    else:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            if source_path:
+                print(f"  git clone --local {source_path} -> {target}")
+                clone_local(source_path, target, canonical_url)
+            else:
+                print(f"  git clone {url} -> {target}")
+                clone(url, target)
+        except GitError as e:
+            raise SystemExit(f"fatal: {e}")
 
     version = default_branch(target)
 

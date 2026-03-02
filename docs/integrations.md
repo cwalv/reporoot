@@ -180,6 +180,10 @@ Removes the entire `.gita/` directory.
 
 Warns if `gita` is not on PATH.
 
+### Why not `gita freeze` / `gita clone`?
+
+gita has its own serialization format (`gita freeze` outputs CSV with URL, name, path, branch) and can bootstrap from it via `gita clone`. This overlaps with `reporoot lock` / `reporoot fetch`, but `gita freeze` records branch names rather than pinned SHAs, so it's less precise for reproducibility. Reporoot's `.lock.repos` also carries role annotations and YAML structure. The two mechanisms would overlap awkwardly, so the gita integration only generates the config files that gita needs at runtime — it doesn't use gita's own freeze/clone flow.
+
 ## vscode-workspace
 
 Generates a `{project}.code-workspace` file into the project's `.reporoot-derived/` directory and symlinks it to the workspace root. Uses a single-root workspace (the reporoot directory) with `files.exclude` to hide repos and project directories not in the active project. This keeps search and glob behavior simple — no multi-root workspace complications — while showing only what's relevant in the file explorer.
