@@ -1,8 +1,9 @@
-"""reporoot activate — set the active project and run integration hooks.
+"""reporoot activate / deactivate — manage the active project.
 
 Usage:
   reporoot activate web-app     Set active project, run integrations (npm, go, gita, etc.)
-  reporoot activate none        Deactivate, remove generated files
+  reporoot deactivate           Remove derived files, clear active project
+  reporoot deactivate --hard    Also remove tool state (node_modules, .venv, etc.)
 """
 
 from __future__ import annotations
@@ -26,8 +27,8 @@ from reporoot.workspace import (
 _ALWAYS_KEEP = {"projects"}
 
 
-def reset(hard: bool = False, force: bool = False) -> None:
-    """Deactivate: remove derived files, clear .rr-active pointer.
+def deactivate(hard: bool = False, force: bool = False) -> None:
+    """Deactivate: remove derived files, clear .reporoot-active pointer.
 
     With hard=True, also removes everything at root that isn't a known
     registry directory or projects/ — tool state like node_modules,
@@ -35,8 +36,8 @@ def reset(hard: bool = False, force: bool = False) -> None:
     unless force=True.
     """
     root = find_root()
-    print("reset: deactivating")
-    active_file = root / ".rr-active"
+    print("deactivate: removing derived files")
+    active_file = root / ".reporoot-active"
     if active_file.exists():
         active_file.unlink()
     run_deactivate(root)
@@ -94,10 +95,6 @@ def _hard_clean(root: Path, *, force: bool) -> None:
 def run(project: str) -> None:
     root = find_root()
 
-    if project == "none":
-        reset()
-        return
-
     # Validate project exists
     repos_file = project_repos_file(root, project)
     if not repos_file.exists():
@@ -110,8 +107,8 @@ def run(project: str) -> None:
     else:
         print(f"activate: {project}")
 
-    # Write .rr-active
-    (root / ".rr-active").write_text(project + "\n")
+    # Write .reporoot-active
+    (root / ".reporoot-active").write_text(project + "\n")
 
     # Read repos and integration config
     repos = read_repos(repos_file)

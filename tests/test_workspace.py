@@ -31,7 +31,7 @@ class TestFindRoot:
         assert find_root(tmp_path) == tmp_path
 
     def test_finds_by_rr_active(self, tmp_path: Path):
-        (tmp_path / ".rr-active").write_text("myproject\n")
+        (tmp_path / ".reporoot-active").write_text("myproject\n")
         assert find_root(tmp_path) == tmp_path
 
     def test_finds_from_subdirectory(self, workspace: Path):
@@ -49,17 +49,17 @@ class TestActiveProject:
         assert active_project(workspace) is None
 
     def test_empty_active_file(self, workspace: Path):
-        (workspace / ".rr-active").write_text("")
+        (workspace / ".reporoot-active").write_text("")
         assert active_project(workspace) is None
 
     def test_valid_active_project(self, workspace: Path):
         project_dir = workspace / "projects" / "myproject"
         project_dir.mkdir(parents=True)
-        (workspace / ".rr-active").write_text("myproject\n")
+        (workspace / ".reporoot-active").write_text("myproject\n")
         assert active_project(workspace) == "myproject"
 
     def test_invalid_project_warns(self, workspace: Path, capsys):
-        (workspace / ".rr-active").write_text("nonexistent\n")
+        (workspace / ".reporoot-active").write_text("nonexistent\n")
         assert active_project(workspace) is None
         captured = capsys.readouterr()
         assert "does not exist" in captured.out
@@ -67,7 +67,7 @@ class TestActiveProject:
     def test_multi_segment_active_project(self, workspace: Path):
         project_dir = workspace / "projects" / "chatly" / "web-app"
         project_dir.mkdir(parents=True)
-        (workspace / ".rr-active").write_text("chatly/web-app\n")
+        (workspace / ".reporoot-active").write_text("chatly/web-app\n")
         assert active_project(workspace) == "chatly/web-app"
 
     def test_require_active_raises(self, workspace: Path):

@@ -67,7 +67,7 @@ def workspace_with_project(workspace: Path, git_repo: Path) -> tuple[Path, Path]
     )
 
     # Set active project
-    (workspace / ".rr-active").write_text("test-project\n")
+    (workspace / ".reporoot-active").write_text("test-project\n")
 
     return workspace, target
 

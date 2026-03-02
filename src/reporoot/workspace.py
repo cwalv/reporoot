@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 def find_root(start: Path | None = None) -> Path:
     """Walk up from start (default: cwd) looking for a reporoot.
 
-    A reporoot is identified by having a projects/ directory, an .rr-active
+    A reporoot is identified by having a projects/ directory, an .reporoot-active
     file, or any known registry directory (github/, gitlab/, etc.).
     """
     from reporoot.config import registry_names
@@ -18,13 +18,13 @@ def find_root(start: Path | None = None) -> Path:
     p = (start or Path.cwd()).resolve()
     names = registry_names()
     while True:
-        if (p / "projects").is_dir() or (p / ".rr-active").exists():
+        if (p / "projects").is_dir() or (p / ".reporoot-active").exists():
             return p
         for name in names:
             if (p / name).is_dir():
                 return p
         if p.parent == p:
-            raise SystemExit("fatal: not inside a reporoot (no registry dir, projects/, or .rr-active found)")
+            raise SystemExit("fatal: not inside a reporoot (no registry dir, projects/, or .reporoot-active found)")
         p = p.parent
 
 
@@ -32,12 +32,12 @@ def find_root(start: Path | None = None) -> Path:
 
 
 def active_project(root: Path) -> str | None:
-    """Read .rr-active and return the project name, or None if no project is active.
+    """Read .reporoot-active and return the project name, or None if no project is active.
 
-    Validates that the named project directory exists.  If .rr-active names a
+    Validates that the named project directory exists.  If .reporoot-active names a
     project that doesn't exist in projects/, prints a warning and returns None.
     """
-    active_file = root / ".rr-active"
+    active_file = root / ".reporoot-active"
     if not active_file.exists():
         return None
     name = active_file.read_text().strip()
@@ -45,7 +45,7 @@ def active_project(root: Path) -> str | None:
         return None
     project_dir = root / "projects" / name
     if not project_dir.is_dir():
-        print(f"warning: .rr-active names '{name}' but projects/{name}/ does not exist")
+        print(f"warning: .reporoot-active names '{name}' but projects/{name}/ does not exist")
         return None
     return name
 
