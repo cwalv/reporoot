@@ -117,6 +117,21 @@ def all_known_repos(root: Path) -> set[str]:
     return known
 
 
+def find_git_repos(base: Path) -> set[str]:
+    """Find all git repos under a directory, returned as relative paths from root.
+
+    ``base`` is a registry directory (e.g., root/github).  Paths are returned
+    relative to ``base.parent`` (the reporoot).
+    """
+    root = base.parent
+    repos: set[str] = set()
+    for git_dir in sorted(base.rglob(".git")):
+        if git_dir.is_dir():
+            rel = str(git_dir.parent.relative_to(root))
+            repos.add(rel)
+    return repos
+
+
 # --- URL helpers ---
 # These delegate to reporoot.config but are kept for backward compatibility.
 

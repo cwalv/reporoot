@@ -20,23 +20,13 @@ from reporoot.integrations.registry import run_check
 from reporoot.workspace import (
     all_known_repos,
     all_project_repos_files,
+    find_git_repos,
     find_root,
     project_lock_file,
     read_repos,
     read_repos_full,
     require_active_project,
 )
-
-
-def _find_git_repos(base: Path) -> set[str]:
-    """Find all git repos under a directory, returned as relative paths from root."""
-    root = base.parent  # base is e.g. root/github, we want paths relative to root
-    repos = set()
-    for git_dir in sorted(base.rglob(".git")):
-        if git_dir.is_dir():
-            rel = str(git_dir.parent.relative_to(root))
-            repos.add(rel)
-    return repos
 
 
 def _check_missing_roles(repos_file: Path) -> list[str]:
@@ -90,7 +80,7 @@ def run() -> None:
     for reg_name in sorted(registry_names()):
         reg_dir = root / reg_name
         if reg_dir.is_dir():
-            on_disk = _find_git_repos(reg_dir)
+            on_disk = find_git_repos(reg_dir)
             orphaned = on_disk - known_repos
             for repo in sorted(orphaned):
                 print(f"orphan: {repo} (on disk but not in any project .repos)")

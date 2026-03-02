@@ -23,6 +23,14 @@ class IntegrationContext:
     config: dict
     """Per-integration config from the 'integrations' key in the .repos file."""
 
+    all_repos_on_disk: set[str] = field(default_factory=set)
+    """All git repos found on disk under registry directories (relative paths).
+    Populated once by the registry, shared across integrations."""
+
+    all_project_paths: list[str] = field(default_factory=list)
+    """All project paths (e.g., ['web-app', 'mobile-app']).
+    Populated once by the registry, shared across integrations."""
+
 
 @dataclass
 class Issue:
