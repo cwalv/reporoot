@@ -5,9 +5,9 @@ nav_order: 1
 permalink: /
 ---
 
-**Monorepo ergonomics without the monorepo.**
+Software lives in multiple repos. Even a monorepo has upstream dependencies, vendored libraries, etc., where the source of truth is elsewhere. The code you work with almost always spans repos you own, repos you depend on (or forked), and maybe even repos you just want around as a reference.
 
-Your code already spans multiple repos — your own projects, forks, dependencies, reference implementations. Reporoot gives them a shared workspace so every tool that touches the filesystem — editors, grep, agents, debuggers, build tools — works across all of them. Repos stay sovereign: normal clones, normal branches, normal git.
+The value of a monorepo is the workspace — all your code in one directory tree, so every tool that touches the filesystem works across all of it. Reporoot gives you the workspace without merging repos. A project `.repos` file declares which repos belong together; `reporoot activate` wires them into ecosystem workspace mechanisms so cross-repo imports resolve locally. Repos stay sovereign: normal clones, normal branches, normal git.
 
 ```
 reporoot/
