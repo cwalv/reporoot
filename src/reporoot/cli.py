@@ -52,6 +52,21 @@ def main(argv: list[str] | None = None) -> None:
     add_p.add_argument("--note", "-n", help="Freeform note after the role annotation")
     add_p.add_argument("--as-project", dest="as_project", help="Add as a project repo to projects/{name}/")
 
+    # reporoot remove
+    remove_p = sub.add_parser(
+        "remove",
+        help="Remove a repo from the active project",
+        description=(
+            "Remove a repo entry from the active project's .repos file and\n"
+            "re-run activation hooks. Optionally delete the clone from disk."
+        ),
+        formatter_class=_raw,
+    )
+    remove_p.add_argument("path", help="Local path of the repo (e.g., github/owner/repo)")
+    remove_p.add_argument("--project", "-p", help="Override: remove from this project instead of the active one")
+    remove_p.add_argument("--delete", action="store_true", help="Also delete the clone from disk")
+    remove_p.add_argument("--force", action="store_true", help="With --delete, skip confirmation prompt")
+
     # reporoot fetch
     fetch_p = sub.add_parser(
         "fetch",
@@ -166,6 +181,15 @@ def main(argv: list[str] | None = None) -> None:
             role=args.role,
             note=args.note,
             as_project=args.as_project,
+        )
+    elif args.command == "remove":
+        from reporoot.remove import run
+
+        run(
+            path=args.path,
+            project=args.project,
+            delete=args.delete,
+            force=args.force,
         )
     elif args.command == "deactivate":
         from reporoot.activate import deactivate

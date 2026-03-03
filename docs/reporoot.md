@@ -359,6 +359,15 @@ reporoot add https://github.com/example/some-lib.git --role dependency
 # Re-runs activation hooks
 ```
 
+```bash
+reporoot remove github/example/some-lib
+# Removes from active project's .repos file
+# Re-runs activation hooks
+
+reporoot remove github/example/some-lib --delete
+# Also rm -rf the clone from disk (with confirmation)
+```
+
 Manually:
 
 ```bash
@@ -370,7 +379,7 @@ git clone https://github.com/example/some-lib.git github/example/some-lib
 reporoot activate web-app
 ```
 
-Removing: delete the entry from the project `.repos` file, optionally `rm -rf` the directory, update lock file. `reporoot check` will flag repos on disk that aren't in any project.
+Removing manually: delete the entry from the project `.repos` file, optionally `rm -rf` the directory, update lock file. `reporoot check` will flag repos on disk that aren't in any project.
 
 ## `reporoot`
 
@@ -385,6 +394,7 @@ A standalone Python CLI that manages repos following reporoot conventions using 
 | `reporoot deactivate` | Remove integration-generated files, clear active project. |
 | `reporoot deactivate --hard` | Also remove tool state (node_modules, .venv, etc.) with interactive confirmation. Add `--force` to skip prompts. |
 | `reporoot add {url\|path}` | Clone a repo and register it in the active project's `.repos`. URL → derive local path from registry config. With `--role`, sets the role annotation. |
+| `reporoot remove {path}` | Remove a repo from the active project's `.repos` and re-run activation hooks. With `--delete`, also removes the clone from disk (confirms unless `--force`). |
 | `reporoot fetch {source}` | Clone a project repo and all its listed repos. Source: URL, `registry/owner/project`, or `owner/project` (defaults to github). |
 | `reporoot resolve` | Print the workspace root path. Useful for scripting: `cd $(reporoot resolve)`. |
 | `reporoot lock` | Snapshot repo versions into the active project's lock file. |

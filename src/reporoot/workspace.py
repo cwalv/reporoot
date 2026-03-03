@@ -229,3 +229,21 @@ def append_entry(
     with open(repos_file, "a") as f:
         f.write(entry)
     print(f"  added to {repos_file.name}: {local_path}")
+
+
+def remove_entry(repos_file: Path, local_path: str) -> None:
+    """Remove a repo entry from a .repos file.
+
+    Reads the full YAML, removes the key from ``repositories``, and writes back.
+    Raises SystemExit if the path is not found.
+    """
+    import yaml
+
+    data = read_repos_full(repos_file)
+    repos = data.get("repositories") or {}
+    if local_path not in repos:
+        raise SystemExit(f"fatal: {local_path} not found in {repos_file.name}")
+    del repos[local_path]
+    with open(repos_file, "w") as f:
+        yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+    print(f"  removed from {repos_file.name}: {local_path}")

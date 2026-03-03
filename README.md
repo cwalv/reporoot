@@ -133,6 +133,7 @@ reporoot activate mobile-app
 | `reporoot activate {project}` | Set active project, run integration hooks |
 | `reporoot deactivate` | Remove derived files, clear active project |
 | `reporoot add {url\|path}` | Clone a repo and register it in the active project |
+| `reporoot remove {path}` | Remove a repo from the active project, re-run hooks |
 | `reporoot fetch {source}` | Clone a project and all its repos |
 | `reporoot resolve` | Print the workspace root path |
 | `reporoot lock` | Snapshot repo versions for the active project |
