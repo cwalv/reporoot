@@ -108,7 +108,7 @@ class TestFetch:
         main(["fetch", e2e_env["project_url"]])
 
         captured = capsys.readouterr()
-        assert "cloned" in captured.out or "updated" in captured.out
+        assert "git clone" in captured.out
 
         ws = e2e_env["workspace"]
 
