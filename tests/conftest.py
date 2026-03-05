@@ -41,7 +41,7 @@ def workspace(tmp_path: Path) -> Path:
 @pytest.fixture
 def workspace_with_project(workspace: Path, git_repo: Path) -> tuple[Path, Path]:
     """Workspace with an active project and one git repo registered in it."""
-    # Create project directory with .repos file
+    # Create project directory with reporoot.yaml file
     project_dir = workspace / "projects" / "test-project"
     project_dir.mkdir(parents=True)
 
@@ -59,8 +59,8 @@ def workspace_with_project(workspace: Path, git_repo: Path) -> tuple[Path, Path]
         check=True,
     )
 
-    # Register in project .repos file
-    (project_dir / "test-project.repos").write_text(
+    # Register in project reporoot.yaml file
+    (project_dir / "reporoot.yaml").write_text(
         "repositories:\n"
         "  github/test-owner/test-repo:\n"
         "    type: git\n"

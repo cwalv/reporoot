@@ -16,7 +16,7 @@ class TestLock:
         workspace, repo = workspace_with_project
         os.chdir(workspace)
         run()
-        lock = workspace / "projects" / "test-project" / "test-project.lock.repos"
+        lock = workspace / "projects" / "test-project" / "reporoot.lock"
         assert lock.exists()
         repos = read_repos(lock)
         assert "github/test-owner/test-repo" in repos
@@ -35,7 +35,7 @@ class TestLockAll:
         workspace, repo = workspace_with_project
         os.chdir(workspace)
         run_all()
-        lock = workspace / "projects" / "test-project" / "test-project.lock.repos"
+        lock = workspace / "projects" / "test-project" / "reporoot.lock"
         assert lock.exists()
         repos = read_repos(lock)
         assert "github/test-owner/test-repo" in repos

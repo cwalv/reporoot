@@ -41,7 +41,7 @@ def main(argv: list[str] | None = None) -> None:
         help="Add a repo to the active project",
         description=(
             "Clone a repo into the workspace and register it in the active\n"
-            "project's .repos file. Accepts a GitHub URL, a git remote URL,\n"
+            "project's reporoot.yaml. Accepts a GitHub URL, a git remote URL,\n"
             "or a local path to a git repo."
         ),
         formatter_class=_raw,
@@ -57,7 +57,7 @@ def main(argv: list[str] | None = None) -> None:
         "remove",
         help="Remove a repo from the active project",
         description=(
-            "Remove a repo entry from the active project's .repos file and\n"
+            "Remove a repo entry from the active project's reporoot.yaml and\n"
             "re-run activation hooks. Optionally delete the clone from disk."
         ),
         formatter_class=_raw,
@@ -116,8 +116,8 @@ def main(argv: list[str] | None = None) -> None:
         help="Snapshot repo versions for the active project",
         description=(
             "Record each repo's current HEAD commit into the active project's\n"
-            "lock file ({project}.lock.repos). This captures the exact state\n"
-            "of all repos, so another machine can reproduce it with 'reporoot fetch'."
+            "reporoot.lock file. This captures the exact state of all repos,\n"
+            "so another machine can reproduce it with 'reporoot fetch'."
         ),
         formatter_class=_raw,
     )
@@ -136,19 +136,20 @@ def main(argv: list[str] | None = None) -> None:
     )
 
     # reporoot check
-    sub.add_parser(
+    check_p = sub.add_parser(
         "check",
         help="Run convention enforcement checks",
         description=(
             "Scan all projects and repos for convention violations:\n"
-            "- Orphaned clones (in a registry dir but not in any .repos file)\n"
-            "- Dangling references (.repos entry with no clone on disk)\n"
+            "- Orphaned clones (in a registry dir but not in any reporoot.yaml)\n"
+            "- Dangling references (reporoot.yaml entry with no clone on disk)\n"
             "- Missing role annotations\n"
             "- Stale lock files\n"
             "- Integration-specific checks (missing tools, etc.)"
         ),
         formatter_class=_raw,
     )
+    check_p.add_argument("-v", "--verbose", action="store_true", help="Show each issue individually instead of counts")
 
     args = parser.parse_args(argv)
 
@@ -214,4 +215,4 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "check":
         from reporoot.check import run
 
-        run()
+        run(verbose=args.verbose)

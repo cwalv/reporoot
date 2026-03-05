@@ -19,7 +19,7 @@ Each integration provides:
 4. **Deactivation logic** — removes generated files. Called by `reporoot deactivate` and at the start of `reporoot activate` (clean before regenerate).
 5. **Check logic** — receives the same inputs; returns issues and warnings without changing state.
 
-`reporoot activate` first cleans up — running every integration's deactivation hook to remove previously generated files (regardless of config). Then it resolves the repo list from the project's `.repos` file and calls every enabled integration's activation hook. Each decides what to do — auto-detect relevant repos, generate config, run install commands, or skip entirely. `reporoot deactivate` runs only the cleanup step.
+`reporoot activate` first cleans up — running every integration's deactivation hook to remove previously generated files (regardless of config). Then it resolves the repo list from the project's `reporoot.yaml` and calls every enabled integration's activation hook. Each decides what to do — auto-detect relevant repos, generate config, run install commands, or skip entirely. `reporoot deactivate` runs only the cleanup step.
 
 `reporoot check` runs check hooks across all enabled integrations as part of its broader convention audit.
 
@@ -27,12 +27,12 @@ Ecosystem integrations auto-detect repos with the relevant manifest file. If non
 
 Some integrations also run external tools (`npm install`, `uv sync`) that create their own persistent state (`.venv/`, `node_modules/`, lock files). These are managed by the ecosystem tool, not by reporoot — `reporoot deactivate` removes the generated config files but does not clean up tool state. Use `reporoot deactivate --hard` to also remove tool state and other non-repo content at root. If tool state gets corrupted or out of sync, re-running `reporoot activate` regenerates config and re-runs install commands.
 
-### Hook configuration in `.repos`
+### Hook configuration in `reporoot.yaml`
 
-Integration config lives in the project's `.repos` file under an `integrations` key. Only overrides need to be listed — integrations not mentioned use their own defaults:
+Integration config lives in the project's `reporoot.yaml` under an `integrations` key. Only overrides need to be listed — integrations not mentioned use their own defaults:
 
 ```yaml
-# projects/web-app/web-app.repos
+# projects/web-app/reporoot.yaml
 repositories:
   # ...
 
@@ -182,7 +182,7 @@ Warns if `gita` is not on PATH.
 
 ### Why not `gita freeze` / `gita clone`?
 
-gita has its own serialization format (`gita freeze` outputs CSV with URL, name, path, branch) and can bootstrap from it via `gita clone`. This overlaps with `reporoot lock` / `reporoot fetch`, but `gita freeze` records branch names rather than pinned SHAs, so it's less precise for reproducibility. Reporoot's `.lock.repos` also carries role annotations and YAML structure. The two mechanisms would overlap awkwardly, so the gita integration only generates the config files that gita needs at runtime — it doesn't use gita's own freeze/clone flow.
+gita has its own serialization format (`gita freeze` outputs CSV with URL, name, path, branch) and can bootstrap from it via `gita clone`. This overlaps with `reporoot lock` / `reporoot fetch`, but `gita freeze` records branch names rather than pinned SHAs, so it's less precise for reproducibility. Reporoot's `reporoot.lock` also carries role annotations and YAML structure. The two mechanisms would overlap awkwardly, so the gita integration only generates the config files that gita needs at runtime — it doesn't use gita's own freeze/clone flow.
 
 ## vscode-workspace
 
@@ -267,6 +267,6 @@ class Integration(Protocol):
     def check(self, ctx: IntegrationContext) -> list[Issue]: ...
 ```
 
-`IntegrationContext` provides the workspace root, active project name, resolved repo entries (with paths, URLs, roles), per-integration config from the `.repos` file, all repos found on disk across registries (`all_repos_on_disk`), and all project paths (`all_project_paths`). The disk-scan fields are computed once and shared across integrations.
+`IntegrationContext` provides the workspace root, active project name, resolved repo entries (with paths, URLs, roles), per-integration config from `reporoot.yaml`, all repos found on disk across registries (`all_repos_on_disk`), and all project paths (`all_project_paths`). The disk-scan fields are computed once and shared across integrations.
 
 New integrations are registered in `registry.py`.

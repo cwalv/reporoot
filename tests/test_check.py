@@ -32,7 +32,7 @@ class TestCheck:
         # Register it in a project with role field
         project_dir = workspace / "projects" / "myproject"
         project_dir.mkdir(parents=True)
-        (project_dir / "myproject.repos").write_text(
+        (project_dir / "reporoot.yaml").write_text(
             "repositories:\n"
             "  github/a/lib:\n"
             "    type: git\n"
@@ -48,16 +48,16 @@ class TestCheck:
     def test_orphaned_clone(self, workspace: Path, capsys):
         os.chdir(workspace)
 
-        # Repo on disk but not in any project .repos
+        # Repo on disk but not in any project reporoot.yaml
         _make_git_repo(workspace / "github" / "a" / "orphan")
 
         # Empty project
         project_dir = workspace / "projects" / "myproject"
         project_dir.mkdir(parents=True)
-        (project_dir / "myproject.repos").write_text("repositories:\n")
+        (project_dir / "reporoot.yaml").write_text("repositories:\n")
 
         with pytest.raises(SystemExit):
-            run()
+            run(verbose=True)
         captured = capsys.readouterr()
         assert "orphan" in captured.out
         assert "github/a/orphan" in captured.out
@@ -68,7 +68,7 @@ class TestCheck:
         # Project references a repo that's not on disk
         project_dir = workspace / "projects" / "myproject"
         project_dir.mkdir(parents=True)
-        (project_dir / "myproject.repos").write_text(
+        (project_dir / "reporoot.yaml").write_text(
             "repositories:\n"
             "  github/a/missing:\n"
             "    type: git\n"
@@ -78,7 +78,7 @@ class TestCheck:
         )
 
         with pytest.raises(SystemExit):
-            run()
+            run(verbose=True)
         captured = capsys.readouterr()
         assert "dangling" in captured.out
         assert "github/a/missing" in captured.out
@@ -90,17 +90,17 @@ class TestCheck:
 
         project_dir = workspace / "projects" / "myproject"
         project_dir.mkdir(parents=True)
-        (project_dir / "myproject.repos").write_text(
+        (project_dir / "reporoot.yaml").write_text(
             "repositories:\n  github/a/lib:\n    type: git\n    url: https://github.com/a/lib.git\n    version: main\n"
         )
 
         with pytest.raises(SystemExit):
-            run()
+            run(verbose=True)
         captured = capsys.readouterr()
         assert "role" in captured.out
 
     def test_repo_in_any_project_not_orphan(self, workspace: Path, capsys):
-        """A repo in ANY project's .repos is not an orphan, even if only in one."""
+        """A repo in ANY project's reporoot.yaml is not an orphan, even if only in one."""
         os.chdir(workspace)
 
         _make_git_repo(workspace / "github" / "a" / "shared")
@@ -109,7 +109,7 @@ class TestCheck:
         # Project alpha has both repos
         alpha = workspace / "projects" / "alpha"
         alpha.mkdir(parents=True)
-        (alpha / "alpha.repos").write_text(
+        (alpha / "reporoot.yaml").write_text(
             "repositories:\n"
             "  github/a/shared:\n"
             "    type: git\n"
@@ -126,7 +126,7 @@ class TestCheck:
         # Project beta has only shared
         beta = workspace / "projects" / "beta"
         beta.mkdir(parents=True)
-        (beta / "beta.repos").write_text(
+        (beta / "reporoot.yaml").write_text(
             "repositories:\n"
             "  github/a/shared:\n"
             "    type: git\n"

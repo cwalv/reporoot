@@ -83,13 +83,13 @@ def run(
 
     version = default_branch(target)
 
-    # Add to project .repos file
+    # Add to project reporoot.yaml
     if not as_project:
         # Determine which project to add to
         target_project = project or require_active_project(root)
         repos_file = project_repos_file(root, target_project)
         if not repos_file.parent.exists():
-            print(f"  warning: project dir projects/{target_project}/ does not exist, skipping .repos update")
+            print(f"  warning: project dir projects/{target_project}/ does not exist, skipping reporoot.yaml update")
         else:
             append_entry(repos_file, local_path, canonical_url, version, role=role, note=note)
             # Regenerate integration files

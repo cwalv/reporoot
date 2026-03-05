@@ -8,7 +8,7 @@ Software lives in multiple repos. Even a monorepo has upstream dependencies, ven
 
 The value of a monorepo is the workspace. All your code lives in one directory tree, so every tool that touches the filesystem — editors, grep, agents, debuggers, build tools — works across all of it. Your code can talk to your other code without ceremony. You also get workspace-wide atomic commit, which is useful, but not the main benefit.
 
-Reporoot provides the workspace without merging repos. Repos live under one root in a predictable layout, so filesystem-level tools work across them naturally. A project `.repos` file declares which repos belong together; `reporoot activate` wires them into ecosystem workspace mechanisms (npm workspaces, `go.work`, Cargo workspaces) so cross-repo imports resolve locally. Repos stay sovereign — normal clones, normal branches, normal git.
+Reporoot provides the workspace without merging repos. Repos live under one root in a predictable layout, so filesystem-level tools work across them naturally. A project `reporoot.yaml` file declares which repos belong together; `reporoot activate` wires them into ecosystem workspace mechanisms (npm workspaces, `go.work`, Cargo workspaces) so cross-repo imports resolve locally. Repos stay sovereign — normal clones, normal branches, normal git.
 
 ## Core idea
 
@@ -16,7 +16,7 @@ The workspace has three layers:
 
 1. **The directory tree** — repos under one root. Every tool benefits: search, navigation, agents, editors. This is the convention alone — no tooling required.
 2. **Ecosystem wiring** — activation hooks generate workspace files (`package.json`, `go.work`) so cross-package imports resolve locally. `import { thing } from '@myorg/shared'` just works.
-3. **Reproducibility** — a committed `.repos` file and its `.lock.repos` pin each repo to an exact SHA, making the project state reproducible from a single project repo.
+3. **Reproducibility** — a committed `reporoot.yaml` file and its `reporoot.lock` pin each repo to an exact SHA, making the project state reproducible from a single project repo.
 
 The only difference from a monorepo commit: updating the lock file is two steps instead of one. You commit in individual repos first, then regenerate and commit the lock file. This is two-phase commit — the lock update is detectable and reversible:
 
@@ -25,7 +25,7 @@ The only difference from a monorepo commit: updating the lock file is two steps 
 # 2. Update and commit the lock file
 reporoot lock
 cd projects/web-app
-git add web-app.lock.repos && git commit -m "lock: add payment endpoint"
+git add reporoot.lock && git commit -m "lock: add payment endpoint"
 ```
 
 To reproduce a project from scratch:
@@ -36,7 +36,7 @@ mkdir reporoot && cd reporoot
 reporoot fetch chatly/web-app
 ```
 
-`sha256sum web-app.lock.repos` gives a single fingerprint for the project state — the multi-repo equivalent of `git rev-parse HEAD`.
+`sha256sum reporoot.lock` gives a single fingerprint for the project state — the multi-repo equivalent of `git rev-parse HEAD`.
 
 ### Why not git submodules?
 
@@ -44,8 +44,8 @@ Git submodules aim to solve a similar problem — coordinating code across repos
 
 | Reporoot | Git submodules |
 |---|---|
-| project `.repos` file | `.gitmodules` |
-| project `.lock.repos` | SHA stored in parent tree (inherent) |
+| project `reporoot.yaml` | `.gitmodules` |
+| project `reporoot.lock` | SHA stored in parent tree (inherent) |
 | `reporoot fetch` | `git submodule update --init --recursive` |
 | `reporoot lock` | `git add <submodule>` (records current SHA) |
 | `gita super` / `gita shell` | `git submodule foreach` |
@@ -70,15 +70,15 @@ The reporoot contains two fundamentally different kinds of repos, distinguished 
 | Kind | Path | Purpose |
 |------|------|---------|
 | **Normal** | `{registry}/{owner}/{repo}/` | Code. Build tools look here. Other repos import from here. Listed in root `package.json` workspaces, `go.work`, etc. |
-| **Project** | `projects/{name}/` | Coordination. `.repos` files, lock files, docs. Build tools never see these. No importable code. |
+| **Project** | `projects/{name}/` | Coordination. `reporoot.yaml`, lock files, docs. Build tools never see these. No importable code. |
 
 Path encodes kind — you can tell what a repo is for from its location. Build tools (npm/pnpm, Go, Nx) are configured to look inside registry directories (`github/`, `gitlab/`, etc.), not `projects/`. Project repos have GitHub URLs (for fetchability) but their local path reflects their *role*, not their provenance.
 
-Project paths default to `projects/{name}/` for ergonomics. If names collide (two owners with a project called `web-app`), `reporoot fetch` errors and suggests a scoped path: `projects/{owner}/{name}/` or `projects/{registry}/{owner}/{name}/`. `reporoot activate` requires the path as created — if the project lives at `projects/chatly/web-app/`, you must use `reporoot activate chatly/web-app`, not just `web-app`. Errors if no matching directory with a `.repos` file exists.
+Project paths default to `projects/{name}/` for ergonomics. If names collide (two owners with a project called `web-app`), `reporoot fetch` errors and suggests a scoped path: `projects/{owner}/{name}/` or `projects/{registry}/{owner}/{name}/`. `reporoot activate` requires the path as created — if the project lives at `projects/chatly/web-app/`, you must use `reporoot activate chatly/web-app`, not just `web-app`. Errors if no matching directory with a `reporoot.yaml` file exists.
 
 ## Directory layout
 
-Normal repos are organized by provenance: `{registry}/{owner}/{repo}/`. The first path segment is a **registry** — a short name for the host where the repo lives. `reporoot` ships with built-in defaults for well-known hosts (`github.com` → `github`, `gitlab.com` → `gitlab`, `bitbucket.org` → `bitbucket`); custom registries (e.g., `git.mycompany.com` → `internal`) are configured in `reporoot`'s own config. This follows Go's GOPATH precedent (`$GOPATH/src/github.com/owner/repo`), shortened for ergonomics.
+Normal repos are organized by provenance: `{registry}/{owner}/{repo}/`. The first path segment is a **registry** — a short name for where the repo lives. `reporoot` ships with built-in defaults for well-known hosts (`github.com` → `github`, `gitlab.com` → `gitlab`, `bitbucket.org` → `bitbucket`); custom registries are configured in `reporoot`'s own config. A registry can be domain-based (e.g., `git.mycompany.com` → `internal`, handles `https://` and `git@` URLs) or directory-based (e.g., `/srv/repos` → `local`, handles `file://` URLs). This follows Go's GOPATH precedent (`$GOPATH/src/github.com/owner/repo`), shortened for ergonomics.
 
 Projects are named views over subsets of repos, with their own docs and lock files.
 
@@ -93,15 +93,15 @@ reporoot/
 │   │   └── docs/
 │   │
 │   ├── web-app/
-│   │   ├── web-app.repos         # Source of truth: which repos, what roles
-│   │   ├── web-app.lock.repos    # Pinned SHAs (committed)
+│   │   ├── reporoot.yaml         # Source of truth: which repos, what roles
+│   │   ├── reporoot.lock         # Pinned SHAs (committed)
 │   │   ├── .reporoot-derived/    # Integration artifacts (symlinked to root)
 │   │   │   └── web-app.code-workspace
 │   │   └── docs/
 │   │
 │   └── mobile-app/
-│       ├── mobile-app.repos
-│       ├── mobile-app.lock.repos
+│       ├── reporoot.yaml
+│       ├── reporoot.lock
 │       ├── .reporoot-derived/
 │       │   └── mobile-app.code-workspace
 │       └── docs/
@@ -124,14 +124,14 @@ reporoot/
 ```
 
 - **Normal repos live in one place** (`{registry}/{owner}/{repo}/`), regardless of how many projects reference them.
-- **Projects are directories** with a `.repos` file, a `.lock.repos` file, and `docs/`. They don't contain code — build tools are unaware of them.
-- **Overlap is natural** — `server` and `protocol` appear in both projects' `.repos` files, but there's one clone on disk.
+- **Projects are directories** with a `reporoot.yaml` file, a `reporoot.lock` file, and `docs/`. They don't contain code — build tools are unaware of them.
+- **Overlap is natural** — `server` and `protocol` appear in both projects' `reporoot.yaml` files, but there's one clone on disk.
 - **Root ecosystem files are derived** — `package.json`, `go.work`, etc. are generated by activation hooks from the active project's repos. Some (like `.code-workspace`) are generated into the project's `.reporoot-derived/` directory and symlinked to the root, allowing them to be committed and customized. Others are written directly to the root and not committed.
 - **Repos without an active project stay on disk** — clone something for a quick look; it's an inert directory until you add it to a project.
 
 ## The active project
 
-One project is active at a time. The active project's `.repos` file drives activation hooks — which repos are wired into `package.json` workspaces, `go.work`, gita config, etc.
+One project is active at a time. The active project's `reporoot.yaml` file drives activation hooks — which repos are wired into `package.json` workspaces, `go.work`, gita config, etc.
 
 ```bash
 reporoot activate web-app
@@ -143,7 +143,7 @@ This does three things:
 2. **Sets the pointer** — writes `web-app` to `.reporoot-active` at the reporoot.
 3. **Runs integrations** — each integration's activation hook receives the resolved repo list and generates config files, runs install commands, or performs other setup. See [Integrations](#integrations).
 
-**Important:** Generated files are not kept in sync automatically. If you edit a project's `.repos` file (add, remove, or change repos), you must re-run `reporoot activate` to regenerate workspace files and re-run install commands. Without re-activation, ecosystem tools see stale config — `package.json` lists the wrong workspaces, `go.work` points to removed modules, `uv sync` installed packages for repos no longer in the project. `reporoot add` handles this for the add-a-repo case (it re-runs activation hooks after updating `.repos`), but manual `.repos` edits require an explicit `reporoot activate`.
+**Important:** Generated files are not kept in sync automatically. If you edit a project's `reporoot.yaml` (add, remove, or change repos), you must re-run `reporoot activate` to regenerate workspace files and re-run install commands. Without re-activation, ecosystem tools see stale config — `package.json` lists the wrong workspaces, `go.work` points to removed modules, `uv sync` installed packages for repos no longer in the project. `reporoot add` handles this for the add-a-repo case (it re-runs activation hooks after updating `reporoot.yaml`), but manual edits require an explicit `reporoot activate`.
 
 ### Switching projects
 
@@ -179,14 +179,14 @@ web-app
 
 ## Repos files
 
-YAML format with a `repositories` root key. Each entry is keyed by local path and has `type`, `url`, `version`, and `role` fields. Based on vcstool's `.repos` format, extended with `role` and an optional `integrations` key for integration configuration (see [Integrations](#integrations)).
+YAML format with a `repositories` root key. Each entry is keyed by local path and has `type`, `url`, `version`, and `role` fields. Based on vcstool's `.repos` format, extended with `role` and an optional `integrations` key for integration configuration (see [Integrations](#integrations)). Each project directory contains a `reporoot.yaml` (the declaration) and optionally a `reporoot.lock` (pinned SHAs).
 
-### Project `.repos` files
+### Project `reporoot.yaml` files
 
 The source of truth for which repos belong to a project. Committed in the project repo, with version history:
 
 ```yaml
-# projects/web-app/web-app.repos
+# projects/web-app/reporoot.yaml
 repositories:
   github/chatly/server:
     type: git
@@ -215,7 +215,7 @@ repositories:
 Generated by `reporoot lock`, same format but with resolved SHAs instead of branch names:
 
 ```yaml
-# projects/web-app/web-app.lock.repos — generated, committed
+# projects/web-app/reporoot.lock — generated, committed
 repositories:
   github/chatly/server:
     type: git
@@ -228,18 +228,18 @@ repositories:
   # ...
 ```
 
-Lock files live alongside their `.repos` file in the project directory, committed in the project repo. Each project owns its own lock state.
+Lock files live alongside `reporoot.yaml` in the project directory, committed in the project repo. Each project owns its own lock state.
 
-`sha256sum web-app.lock.repos` is the project fingerprint. Two developers with the same lock file checksum have identical source for every repo in the project.
+`sha256sum reporoot.lock` is the project fingerprint. Two developers with the same lock file checksum have identical source for every repo in the project.
 
 ## Projects
 
-A project is a directory under `projects/` with a `.repos` file, a lock file, and a `docs/` directory. (We use "project" to avoid overloading "workspace," which each ecosystem already uses for its own build wiring — npm workspaces, `go.work`, Cargo workspaces. A project is also more than build wiring — it includes docs, roles, and lock files.)
+A project is a directory under `projects/` with a `reporoot.yaml` file, a lock file, and a `docs/` directory. (We use "project" to avoid overloading "workspace," which each ecosystem already uses for its own build wiring — npm workspaces, `go.work`, Cargo workspaces. A project is also more than build wiring — it includes docs, roles, and lock files.)
 
 ```
 projects/web-app/
-├── web-app.repos         # Which repos, with what roles
-├── web-app.lock.repos    # Pinned SHAs (reporoot lock)
+├── reporoot.yaml         # Which repos, with what roles
+├── reporoot.lock         # Pinned SHAs (reporoot lock)
 ├── .reporoot-derived/    # Integration artifacts (symlinked to root)
 │   └── web-app.code-workspace
 └── docs/                 # Cross-repo architecture docs, roadmap, coordination
@@ -262,23 +262,23 @@ mkdir ~/reporoot && cd ~/reporoot
 reporoot fetch chatly/web-app
 ```
 
-`reporoot fetch` clones the project repo to `projects/web-app/`, reads its `.repos` file, clones every listed normal repo to its `github/{owner}/{repo}/` path, and activates the project. One command, and you have the complete working environment.
+`reporoot fetch` clones the project repo to `projects/web-app/`, reads its `reporoot.yaml`, clones every listed normal repo to its `github/{owner}/{repo}/` path, and activates the project. One command, and you have the complete working environment.
 
 ### Overlap between projects
 
 Same repo, different projects — natural and expected:
 
 ```
-projects/web-app/web-app.repos:
+projects/web-app/reporoot.yaml:
   github/chatly/server           role: primary
   github/chatly/protocol         role: primary
 
-projects/mobile-app/mobile-app.repos:
+projects/mobile-app/reporoot.yaml:
   github/chatly/server           role: primary
   github/chatly/protocol         role: primary
 ```
 
-There's one clone of `server` on disk. The role annotations may differ between projects — `server` could be `primary` in one and `dependency` in another. The active project determines which role applies.
+There's one clone of `server` on disk. The role annotations may differ between projects — `server` could be `primary` in one and `dependency` in another. The active project's `reporoot.yaml` determines which role applies.
 
 ### Project variants via branches
 
@@ -287,11 +287,11 @@ Need a variant of a project — same repos but with an extra dependency, or a di
 ```bash
 cd projects/web-app
 git checkout -b experiment
-# edit web-app.repos (add a repo, change a role)
-reporoot activate web-app   # picks up the branch's .repos
+# edit reporoot.yaml (add a repo, change a role)
+reporoot activate web-app   # picks up the branch's reporoot.yaml
 ```
 
-This avoids inventing inheritance or "derived project" machinery. A branch is already a variant with full version history, and `reporoot activate` reads whatever `.repos` is checked out.
+This avoids inventing inheritance or "derived project" machinery. A branch is already a variant with full version history, and `reporoot activate` reads whatever `reporoot.yaml` is checked out.
 
 ## Roles
 
@@ -304,9 +304,9 @@ Roles signal **change resistance** — how freely you (or an agent) should modif
 | `dependency` | Medium | Code you build against. Changes need upstream acceptance, or convert to a fork. |
 | `reference` | High | Cloned for reading/study during design. No local changes. Could be removed when done. |
 
-**Roles are per-project, not per-repo.** The same repo can have different roles in different projects. `engine.io` is a `fork` in web-app (patched for reconnection) but could be a `dependency` in another project (using it unmodified). The active project's `.repos` file determines the current role.
+**Roles are per-project, not per-repo.** The same repo can have different roles in different projects. `engine.io` is a `fork` in web-app (patched for reconnection) but could be a `dependency` in another project (using it unmodified). The active project's `reporoot.yaml` determines the current role.
 
-Roles are a first-class field in project `.repos` files:
+Roles are a first-class field in `reporoot.yaml`:
 
 ```yaml
   github/socketio/engine.io:
@@ -355,13 +355,13 @@ With `reporoot`:
 ```bash
 reporoot add https://github.com/example/some-lib.git --role dependency
 # Clones to github/example/some-lib/
-# Adds to active project's .repos file
+# Adds to active project's reporoot.yaml
 # Re-runs activation hooks
 ```
 
 ```bash
 reporoot remove github/example/some-lib
-# Removes from active project's .repos file
+# Removes from active project's reporoot.yaml
 # Re-runs activation hooks
 
 reporoot remove github/example/some-lib --delete
@@ -374,16 +374,16 @@ Manually:
 # Clone into the provenance path
 git clone https://github.com/example/some-lib.git github/example/some-lib
 
-# Add to the project .repos file (edit YAML by hand)
+# Add to the project reporoot.yaml (edit YAML by hand)
 # Re-run activation hooks
 reporoot activate web-app
 ```
 
-Removing manually: delete the entry from the project `.repos` file, optionally `rm -rf` the directory, update lock file. `reporoot check` will flag repos on disk that aren't in any project.
+Removing manually: delete the entry from `reporoot.yaml`, optionally `rm -rf` the directory, update lock file. `reporoot check` will flag repos on disk that aren't in any project.
 
 ## `reporoot`
 
-A standalone Python CLI that manages repos following reporoot conventions using direct git commands. Installed out of band — not part of any project. Nothing about the underlying `.repos` files changes; `reporoot` is a convenience layer on top.
+A standalone Python CLI that manages repos following reporoot conventions using direct git commands. Installed out of band — not part of any project. Nothing about the underlying `reporoot.yaml` files changes; `reporoot` is a convenience layer on top.
 
 ### Commands
 
@@ -393,29 +393,29 @@ A standalone Python CLI that manages repos following reporoot conventions using 
 | `reporoot activate {project}` | Set active project, run integration hooks (npm, go, uv, gita, vscode). |
 | `reporoot deactivate` | Remove integration-generated files, clear active project. |
 | `reporoot deactivate --hard` | Also remove tool state (node_modules, .venv, etc.) with interactive confirmation. Add `--force` to skip prompts. |
-| `reporoot add {url\|path}` | Clone a repo and register it in the active project's `.repos`. URL → derive local path from registry config. With `--role`, sets the role annotation. |
-| `reporoot remove {path}` | Remove a repo from the active project's `.repos` and re-run activation hooks. With `--delete`, also removes the clone from disk (confirms unless `--force`). |
+| `reporoot add {url\|path}` | Clone a repo and register it in the active project's `reporoot.yaml`. URL → derive local path from registry config. With `--role`, sets the role annotation. |
+| `reporoot remove {path}` | Remove a repo from the active project's `reporoot.yaml` and re-run activation hooks. With `--delete`, also removes the clone from disk (confirms unless `--force`). |
 | `reporoot fetch {source}` | Clone a project repo and all its listed repos. Source: URL, `registry/owner/project`, or `owner/project` (defaults to github). |
 | `reporoot resolve` | Print the workspace root path. Useful for scripting: `cd $(reporoot resolve)`. |
 | `reporoot lock` | Snapshot repo versions into the active project's lock file. |
 | `reporoot lock-all` | Snapshot repo versions for all projects. Updates shared repos across projects. |
-| `reporoot check` | Convention enforcement. Scans all project `.repos` files to detect orphaned clones, dangling references, missing role annotations, stale locks, and integration issues. |
+| `reporoot check` | Convention enforcement. Scans all project `reporoot.yaml` files to detect orphaned clones, dangling references, missing role annotations, stale locks, and integration issues. |
 
 ### `reporoot check` and multi-project awareness
 
-`reporoot check` is the one command that looks beyond the active project. It scans all `projects/*/*.repos` files to build a complete inventory of known repos. This prevents false orphan warnings — a repo from an inactive project is not an orphan.
+`reporoot check` is the one command that looks beyond the active project. It scans all `projects/*/reporoot.yaml` files to build a complete inventory of known repos. This prevents false orphan warnings — a repo from an inactive project is not an orphan.
 
 | Check | Description |
 |---|---|
-| **Orphaned clones** | Directories under registry paths not listed in ANY project `.repos` file |
-| **Dangling references** | Entries in a `.repos` file pointing to paths not on disk |
-| **Missing role** | Project `.repos` entries without a `role` field |
-| **Stale lock** | Active project's `.lock.repos` doesn't match current repo SHAs |
+| **Orphaned clones** | Directories under registry paths not listed in ANY project `reporoot.yaml` |
+| **Dangling references** | Entries in a `reporoot.yaml` pointing to paths not on disk |
+| **Missing role** | `reporoot.yaml` entries without a `role` field |
+| **Stale lock** | Active project's `reporoot.lock` doesn't match current repo SHAs |
 | **Integration checks** | Each integration's check hook reports tool availability, stale config, etc. (see [Integrations](#integrations)) |
 
 ### `reporoot lock-all`
 
-`reporoot lock-all` updates lock files for every project repo on disk, not just the active one. If you've been working in the web-app context and made commits to `server` and `protocol`, `reporoot lock-all` also updates `mobile-app.lock.repos` (since both projects reference those repos).
+`reporoot lock-all` updates lock files for every project repo on disk, not just the active one. If you've been working in the web-app context and made commits to `server` and `protocol`, `reporoot lock-all` also updates the `reporoot.lock` in mobile-app's project directory (since both projects reference those repos).
 
 This gives you the monorepo property of "one action captures all state" — distributed across project repos. Each project repo can then be committed independently, and each remains independently bootstrappable via `reporoot fetch`.
 
@@ -429,7 +429,7 @@ reporoot fetch chatly/web-app
 
 ## Integrations
 
-Integrations are pluggable units that each derive config for one tool from the repo list. Each participates in activation hooks (`reporoot activate` — generate files, run install commands) and check hooks (`reporoot check` — read-only inspection). Integration config lives in the project's `.repos` file under an `integrations` key; only overrides need to be listed.
+Integrations are pluggable units that each derive config for one tool from the repo list. Each participates in activation hooks (`reporoot activate` — generate files, run install commands) and check hooks (`reporoot check` — read-only inspection). Integration config lives in the project's `reporoot.yaml` under an `integrations` key; only overrides need to be listed.
 
 | Integration | Default enabled | Auto-detects | Generates |
 |---|---|---|---|
@@ -459,7 +459,7 @@ Reporoot solves "which repos, at what versions, in what structure." Several adja
 
 ### What's derivable from project state
 
-A project's `.repos` file + the files generated by activation hooks already imply most of the dev environment:
+A project's `reporoot.yaml` + the files generated by activation hooks already imply most of the dev environment:
 
 | Layer | Derivable? | How |
 |---|---|---|
@@ -467,7 +467,7 @@ A project's `.repos` file + the files generated by activation hooks already impl
 | **Toolchains needed** | Yes | `package.json` exists → Node, `go.work` exists → Go |
 | **Toolchain versions** | Partially | Ecosystem files often pin versions (`.nvmrc`, `go.mod`'s go directive). `.mise.toml` at root fills the gap. |
 | **Workspace deps** | Yes | `npm install`, `go work sync` — deterministic once repos + workspace files exist |
-| **Editor workspace** | Yes | `.code-workspace` folders directly derivable from project `.repos` |
+| **Editor workspace** | Yes | `.code-workspace` folders directly derivable from project `reporoot.yaml` |
 | **Base image / OS packages** | No | System-level, not inferrable from repo structure |
 | **Services** | No | Databases, message queues — runtime deps, not repo deps |
 | **Secrets / env vars** | No | Out of scope |
@@ -515,15 +515,15 @@ export GITA_PROJECT_HOME="$PWD/.gita"         # point gita at reporoot-derived c
 
 ### Nix flakes — structural parallel
 
-[Nix flakes](https://wiki.nixos.org/wiki/Flakes) are the deepest structural parallel. `flake.nix` inputs = project `.repos`, `flake.lock` = project `.lock.repos`, `devShell` = toolchain+deps setup. The difference: Nix owns the entire build graph and is all-or-nothing. Reporoot is deliberately lighter — just repos and conventions, composable with whatever build/env tools you prefer.
+[Nix flakes](https://wiki.nixos.org/wiki/Flakes) are the deepest structural parallel. `flake.nix` inputs = project `reporoot.yaml`, `flake.lock` = project `reporoot.lock`, `devShell` = toolchain+deps setup. The difference: Nix owns the entire build graph and is all-or-nothing. Reporoot is deliberately lighter — just repos and conventions, composable with whatever build/env tools you prefer.
 
 ### CI multi-repo checkout
 
-A `.repos` file can drive a reusable checkout action — same pattern as `reporoot fetch` but in CI:
+`reporoot.yaml` can drive a reusable checkout action — same pattern as `reporoot fetch` but in CI:
 
 ```yaml
 # .github/workflows/ci.yml
 - uses: actions/checkout@v4        # this repo (projects/web-app)
-- run: pip install reporoot && reporoot fetch  # reads .repos, clones code repos
+- run: pip install reporoot && reporoot fetch  # reads reporoot.yaml, clones code repos
 - run: npm install && npm test
 ```

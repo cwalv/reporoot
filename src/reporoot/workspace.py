@@ -1,8 +1,11 @@
-"""reporoot utilities: finding the root, reading/writing .repos files, active project."""
+"""reporoot utilities: finding the root, reading/writing reporoot.yaml, active project."""
 
 from __future__ import annotations
 
 from pathlib import Path
+
+REPOS_FILE = "reporoot.yaml"
+LOCK_FILE = "reporoot.lock"
 
 
 def find_root(start: Path | None = None) -> Path:
@@ -57,58 +60,44 @@ def require_active_project(root: Path) -> str:
 
 
 def active_repos_file(root: Path) -> Path:
-    """Return the .repos file path for the active project."""
+    """Return the reporoot.yaml path for the active project."""
     name = require_active_project(root)
     return project_repos_file(root, name)
 
 
 def active_lock_file(root: Path) -> Path:
-    """Return the .lock.repos file path for the active project."""
+    """Return the reporoot.lock path for the active project."""
     name = require_active_project(root)
     return project_lock_file(root, name)
 
 
 def project_repos_file(root: Path, project: str) -> Path:
-    """Return the .repos file path for a named project.
-
-    Supports multi-segment project paths (e.g., 'chatly/web-app').
-    The basename of the path is used as the file stem.
-    """
-    basename = Path(project).name
-    return root / "projects" / project / f"{basename}.repos"
+    """Return the reporoot.yaml path for a named project."""
+    return root / "projects" / project / REPOS_FILE
 
 
 def project_lock_file(root: Path, project: str) -> Path:
-    """Return the .lock.repos file path for a named project.
-
-    Supports multi-segment project paths (e.g., 'chatly/web-app').
-    The basename of the path is used as the file stem.
-    """
-    basename = Path(project).name
-    return root / "projects" / project / f"{basename}.lock.repos"
+    """Return the reporoot.lock path for a named project."""
+    return root / "projects" / project / LOCK_FILE
 
 
 def all_project_repos_files(root: Path) -> list[tuple[str, Path]]:
     """Recursively scan projects/ and return (project_path, repos_file) for each project.
 
     Project path is the relative path from projects/ (e.g., 'alpha' or 'chatly/web-app').
-    Skips .lock.repos files.
     """
     projects_dir = root / "projects"
     if not projects_dir.is_dir():
         return []
     result = []
-    for repos_file in sorted(projects_dir.rglob("*.repos")):
-        if repos_file.name.endswith(".lock.repos"):
-            continue
-        # Derive project path: relative path from projects/ to the containing dir
+    for repos_file in sorted(projects_dir.rglob(REPOS_FILE)):
         project_path = str(repos_file.parent.relative_to(projects_dir))
         result.append((project_path, repos_file))
     return result
 
 
 def all_known_repos(root: Path) -> set[str]:
-    """Return the union of all repo paths across all project .repos files."""
+    """Return the union of all repo paths across all project reporoot.yaml files."""
     known = set()
     for _name, repos_file in all_project_repos_files(root):
         known.update(read_repos(repos_file).keys())
@@ -155,9 +144,9 @@ def normalize_github_url(owner: str, repo: str) -> str:
     return normalize_repo_url("github", owner, repo)
 
 
-# --- .repos file I/O ---
+# --- reporoot.yaml / reporoot.lock I/O ---
 #
-# Format (extended vcstool YAML):
+# Format (YAML):
 #   repositories:
 #     path/to/repo:
 #       type: git
@@ -170,7 +159,7 @@ def normalize_github_url(owner: str, repo: str) -> str:
 
 
 def read_repos(path: Path) -> dict[str, dict]:
-    """Read a .repos file. Returns {local_path: {type, url, version, role, ...}}."""
+    """Read a reporoot.yaml/lock file. Returns {local_path: {type, url, version, role, ...}}."""
     data = read_repos_full(path)
     if not data or "repositories" not in data:
         return {}
@@ -178,7 +167,7 @@ def read_repos(path: Path) -> dict[str, dict]:
 
 
 def read_repos_full(path: Path) -> dict:
-    """Read a .repos file and return the entire YAML document.
+    """Read a reporoot.yaml file and return the entire YAML document.
 
     Returns the full dict including top-level keys like 'repositories'
     and 'integrations'.
@@ -193,7 +182,7 @@ def read_repos_full(path: Path) -> dict:
 
 
 def _format_entry(local_path: str, url: str, version: str, role: str | None = None, note: str | None = None) -> str:
-    """Format a single .repos entry as YAML text."""
+    """Format a single reporoot.yaml entry as YAML text."""
     comment = ""
     if note:
         comment = f"  # {note}"
@@ -214,7 +203,7 @@ def append_entry(
     role: str | None = None,
     note: str | None = None,
 ) -> None:
-    """Append a repo entry to a .repos file, creating it if needed."""
+    """Append a repo entry to a reporoot.yaml file, creating it if needed."""
     if not repos_file.exists():
         repos_file.parent.mkdir(parents=True, exist_ok=True)
         repos_file.write_text("repositories:\n")
@@ -232,7 +221,7 @@ def append_entry(
 
 
 def remove_entry(repos_file: Path, local_path: str) -> None:
-    """Remove a repo entry from a .repos file.
+    """Remove a repo entry from a reporoot.yaml file.
 
     Reads the full YAML, removes the key from ``repositories``, and writes back.
     Raises SystemExit if the path is not found.

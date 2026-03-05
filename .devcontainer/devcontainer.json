@@ -1,0 +1,9 @@
+{
+  "name": "reporoot",
+  "image": "mcr.microsoft.com/devcontainers/python:3.13",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/devcontainers/features/go:1": { "version": "1.23" }
+  },
+  "postCreateCommand": "pip install uv && pip install gita && uv sync"
+}

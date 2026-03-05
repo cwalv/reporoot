@@ -1,4 +1,4 @@
-"""Tests for rr.workspace — root finding, URL parsing, .repos I/O, active project."""
+"""Tests for rr.workspace — root finding, URL parsing, reporoot.yaml I/O, active project."""
 
 from __future__ import annotations
 
@@ -78,30 +78,30 @@ class TestActiveProject:
 class TestProjectReposFile:
     def test_simple_project(self, workspace: Path):
         result = project_repos_file(workspace, "alpha")
-        assert result == workspace / "projects" / "alpha" / "alpha.repos"
+        assert result == workspace / "projects" / "alpha" / "reporoot.yaml"
 
     def test_multi_segment_project(self, workspace: Path):
         result = project_repos_file(workspace, "chatly/web-app")
-        assert result == workspace / "projects" / "chatly" / "web-app" / "web-app.repos"
+        assert result == workspace / "projects" / "chatly" / "web-app" / "reporoot.yaml"
 
     def test_lock_file_simple(self, workspace: Path):
         result = project_lock_file(workspace, "alpha")
-        assert result == workspace / "projects" / "alpha" / "alpha.lock.repos"
+        assert result == workspace / "projects" / "alpha" / "reporoot.lock"
 
     def test_lock_file_multi_segment(self, workspace: Path):
         result = project_lock_file(workspace, "chatly/web-app")
-        assert result == workspace / "projects" / "chatly" / "web-app" / "web-app.lock.repos"
+        assert result == workspace / "projects" / "chatly" / "web-app" / "reporoot.lock"
 
 
 class TestAllProjectReposFiles:
     def test_finds_project_repos(self, workspace: Path):
         p1 = workspace / "projects" / "alpha"
         p1.mkdir(parents=True)
-        (p1 / "alpha.repos").write_text("repositories:\n")
+        (p1 / "reporoot.yaml").write_text("repositories:\n")
 
         p2 = workspace / "projects" / "beta"
         p2.mkdir(parents=True)
-        (p2 / "beta.repos").write_text("repositories:\n")
+        (p2 / "reporoot.yaml").write_text("repositories:\n")
 
         result = all_project_repos_files(workspace)
         assert len(result) == 2
@@ -117,12 +117,12 @@ class TestAllProjectReposFiles:
         # Top-level project
         p1 = workspace / "projects" / "alpha"
         p1.mkdir(parents=True)
-        (p1 / "alpha.repos").write_text("repositories:\n")
+        (p1 / "reporoot.yaml").write_text("repositories:\n")
 
         # Nested project
         p2 = workspace / "projects" / "chatly" / "web-app"
         p2.mkdir(parents=True)
-        (p2 / "web-app.repos").write_text("repositories:\n")
+        (p2 / "reporoot.yaml").write_text("repositories:\n")
 
         result = all_project_repos_files(workspace)
         assert len(result) == 2
@@ -132,8 +132,8 @@ class TestAllProjectReposFiles:
     def test_skips_lock_repos(self, workspace: Path):
         p = workspace / "projects" / "alpha"
         p.mkdir(parents=True)
-        (p / "alpha.repos").write_text("repositories:\n")
-        (p / "alpha.lock.repos").write_text("repositories:\n")
+        (p / "reporoot.yaml").write_text("repositories:\n")
+        (p / "reporoot.lock").write_text("repositories:\n")
 
         result = all_project_repos_files(workspace)
         assert len(result) == 1
@@ -144,7 +144,7 @@ class TestAllKnownRepos:
     def test_union_of_projects(self, workspace: Path):
         p1 = workspace / "projects" / "alpha"
         p1.mkdir(parents=True)
-        (p1 / "alpha.repos").write_text(
+        (p1 / "reporoot.yaml").write_text(
             "repositories:\n"
             "  github/a/shared:\n"
             "    type: git\n"
@@ -158,7 +158,7 @@ class TestAllKnownRepos:
 
         p2 = workspace / "projects" / "beta"
         p2.mkdir(parents=True)
-        (p2 / "beta.repos").write_text(
+        (p2 / "reporoot.yaml").write_text(
             "repositories:\n"
             "  github/a/shared:\n"
             "    type: git\n"
@@ -191,7 +191,7 @@ class TestParseGithubUrl:
         assert parse_github_url("https://github.com/owner/repo/") == ("owner", "repo")
 
     def test_invalid_raises(self):
-        with pytest.raises(ValueError, match="unknown registry host"):
+        with pytest.raises(ValueError, match="cannot parse"):
             parse_github_url("https://unknown.example.com/owner/repo")
 
 

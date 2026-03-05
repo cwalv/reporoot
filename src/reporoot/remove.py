@@ -1,7 +1,7 @@
 """reporoot remove — remove a repo from a project.
 
 Usage:
-  reporoot remove <path>                  Remove from active project's .repos, re-run activate
+  reporoot remove <path>                  Remove from active project's reporoot.yaml, re-run activate
   reporoot remove <path> --project p      Remove from a specific project
   reporoot remove <path> --delete         Also rm -rf the clone from disk
   reporoot remove <path> --delete --force Skip confirmation for disk deletion

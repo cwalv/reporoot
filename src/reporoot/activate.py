@@ -15,6 +15,7 @@ from pathlib import Path
 from reporoot.config import registry_names
 from reporoot.integrations.registry import run_activate, run_deactivate
 from reporoot.workspace import (
+    REPOS_FILE,
     active_project,
     find_root,
     project_repos_file,
@@ -97,7 +98,7 @@ def run(project: str) -> None:
     # Validate project exists
     repos_file = project_repos_file(root, project)
     if not repos_file.exists():
-        raise SystemExit(f"fatal: no {repos_file.name} found in projects/{project}/")
+        raise SystemExit(f"fatal: no {REPOS_FILE} found in projects/{project}/")
 
     # Check if already active
     current = active_project(root)

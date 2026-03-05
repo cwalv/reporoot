@@ -18,10 +18,10 @@ class IntegrationContext:
     """Active project name (may be multi-segment, e.g., 'chatly/web-app')."""
 
     repos: dict[str, dict]
-    """Repo entries from the project's .repos file: {local_path: {type, url, version, role, ...}}."""
+    """Repo entries from the project's reporoot.yaml: {local_path: {type, url, version, role, ...}}."""
 
     config: dict
-    """Per-integration config from the 'integrations' key in the .repos file."""
+    """Per-integration config from the 'integrations' key in reporoot.yaml."""
 
     all_repos_on_disk: set[str] = field(default_factory=set)
     """All git repos found on disk under registry directories (relative paths).

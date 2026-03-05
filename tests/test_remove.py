@@ -16,7 +16,7 @@ class TestRemove:
         workspace, repo = workspace_with_project
         os.chdir(workspace)
 
-        repos_file = workspace / "projects" / "test-project" / "test-project.repos"
+        repos_file = workspace / "projects" / "test-project" / "reporoot.yaml"
         assert "github/test-owner/test-repo" in read_repos(repos_file)
 
         run(path="github/test-owner/test-repo")
@@ -32,7 +32,7 @@ class TestRemove:
         assert repo.exists()
         run(path="github/test-owner/test-repo", delete=True, force=True)
 
-        repos_file = workspace / "projects" / "test-project" / "test-project.repos"
+        repos_file = workspace / "projects" / "test-project" / "reporoot.yaml"
         assert "github/test-owner/test-repo" not in read_repos(repos_file)
         assert not repo.exists()
 
@@ -50,7 +50,7 @@ class TestRemove:
         for name in ("alpha", "beta"):
             project_dir = workspace / "projects" / name
             project_dir.mkdir(parents=True)
-            (project_dir / f"{name}.repos").write_text(
+            (project_dir / "reporoot.yaml").write_text(
                 "repositories:\n"
                 "  github/test-owner/test-repo:\n"
                 "    type: git\n"
@@ -66,11 +66,11 @@ class TestRemove:
         run(path="github/test-owner/test-repo", project="beta")
 
         # beta should have it removed
-        beta_repos = read_repos(workspace / "projects" / "beta" / "beta.repos")
+        beta_repos = read_repos(workspace / "projects" / "beta" / "reporoot.yaml")
         assert "github/test-owner/test-repo" not in beta_repos
 
         # alpha should still have it
-        alpha_repos = read_repos(workspace / "projects" / "alpha" / "alpha.repos")
+        alpha_repos = read_repos(workspace / "projects" / "alpha" / "reporoot.yaml")
         assert "github/test-owner/test-repo" in alpha_repos
 
     def test_remove_delete_not_on_disk(
@@ -86,7 +86,7 @@ class TestRemove:
 
         run(path="github/test-owner/test-repo", delete=True, force=True)
 
-        repos_file = workspace / "projects" / "test-project" / "test-project.repos"
+        repos_file = workspace / "projects" / "test-project" / "reporoot.yaml"
         assert "github/test-owner/test-repo" not in read_repos(repos_file)
         captured = capsys.readouterr()
         assert "not on disk" in captured.out

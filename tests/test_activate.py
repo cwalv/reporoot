@@ -18,7 +18,7 @@ class TestActivate:
         os.chdir(workspace)
         project_dir = workspace / "projects" / "myproject"
         project_dir.mkdir(parents=True)
-        (project_dir / "myproject.repos").write_text("repositories:\n")
+        (project_dir / "reporoot.yaml").write_text("repositories:\n")
 
         run(project="myproject")
 
@@ -41,7 +41,7 @@ class TestActivate:
         os.chdir(workspace)
         project_dir = workspace / "projects" / "myproject"
         project_dir.mkdir(parents=True)
-        (project_dir / "myproject.repos").write_text(
+        (project_dir / "reporoot.yaml").write_text(
             "repositories:\n"
             "  github/a/svc:\n"
             "    type: git\n"
@@ -69,7 +69,7 @@ class TestActivate:
         # First project has a Python repo
         proj_a = workspace / "projects" / "proj-a"
         proj_a.mkdir(parents=True)
-        (proj_a / "proj-a.repos").write_text(
+        (proj_a / "reporoot.yaml").write_text(
             "repositories:\n"
             "  github/a/svc:\n"
             "    type: git\n"
@@ -90,7 +90,7 @@ class TestActivate:
         # Second project has no Python repos
         proj_b = workspace / "projects" / "proj-b"
         proj_b.mkdir(parents=True)
-        (proj_b / "proj-b.repos").write_text("repositories:\n")
+        (proj_b / "reporoot.yaml").write_text("repositories:\n")
 
         run(project="proj-b")
         assert not (workspace / "pyproject.toml").exists()
@@ -155,7 +155,7 @@ class TestActivate:
 
     def test_invalid_project_raises(self, workspace: Path):
         os.chdir(workspace)
-        with pytest.raises(SystemExit, match="no myproject.repos"):
+        with pytest.raises(SystemExit, match="no reporoot.yaml"):
             run(project="myproject")
 
 

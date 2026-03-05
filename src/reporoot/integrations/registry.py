@@ -28,7 +28,7 @@ def resolve_enabled(integrations_config: dict) -> list[Integration]:
     """Return the list of integrations that should be active.
 
     Uses each integration's default_enabled, overridden by the
-    per-project 'integrations' config from the .repos file.
+    per-project 'integrations' config from reporoot.yaml.
     """
     result = []
     for integration in _all_integrations():

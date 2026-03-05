@@ -5,8 +5,9 @@ Usage:
   reporoot fetch github/cwalv/agent-relay             registry/owner/project
   reporoot fetch https://github.com/cwalv/agent-relay full URL
 
-Clones the project repo to projects/{project}/, reads {project}.repos,
-imports all listed repos, and activates the project.
+Clones the project repo to projects/{project}/, reads reporoot.yaml,
+imports all listed repos, and activates the project.  If run outside an
+existing reporoot, bootstraps cwd as a new root.
 """
 
 from __future__ import annotations
@@ -17,11 +18,11 @@ from pathlib import Path
 from reporoot.activate import run as activate
 from reporoot.config import normalize_repo_url, parse_repo_url, resolve_shorthand
 from reporoot.git import GitError, clone, clone_or_update
-from reporoot.workspace import find_root, read_repos
+from reporoot.workspace import REPOS_FILE, find_root, read_repos
 
 
 def _is_url(source: str) -> bool:
-    return source.startswith(("https://", "http://", "git@"))
+    return source.startswith(("https://", "http://", "git@", "file://"))
 
 
 def _import_one(
@@ -45,6 +46,7 @@ def run(source: str) -> None:
     # 1. Full URL: starts with https://, http://, git@
     # 2. registry/owner/project: 3 segments
     # 3. owner/project: 2 segments (default registry)
+    owner: str | None = None
     if _is_url(source):
         registry, owner, project = parse_repo_url(source)
         url = source
@@ -59,14 +61,20 @@ def run(source: str) -> None:
         else:
             raise SystemExit(f"fatal: expected URL, registry/owner/project, or owner/project, got: {source}")
 
-    root = find_root()
+    try:
+        root = find_root()
+    except SystemExit:
+        # Bootstrap: on a fresh machine, use cwd as root
+        root = Path.cwd().resolve()
+        (root / "projects").mkdir(exist_ok=True)
+
     target = root / "projects" / project
 
     if target.exists():
-        raise SystemExit(
-            f"fatal: project already exists: projects/{project}/\n"
-            f"hint: to scope under owner, clone manually to projects/{owner}/{project}/"
-        )
+        msg = f"fatal: project already exists: projects/{project}/"
+        if owner:
+            msg += f"\nhint: to scope under owner, clone manually to projects/{owner}/{project}/"
+        raise SystemExit(msg)
 
     # Clone the project repo
     print(f"fetch: {source}")
@@ -77,18 +85,18 @@ def run(source: str) -> None:
     except GitError as e:
         raise SystemExit(f"fatal: {e}")
 
-    # Read the project's .repos file and import
-    project_repos_file = target / f"{project}.repos"
-    if not project_repos_file.exists():
-        print(f"  warning: no {project}.repos found in project repo")
+    # Read the project's reporoot.yaml and import
+    repos_file = target / REPOS_FILE
+    if not repos_file.exists():
+        print(f"  warning: no {REPOS_FILE} found in project repo")
         return
 
-    repos = read_repos(project_repos_file)
+    repos = read_repos(repos_file)
     if not repos:
-        print(f"  warning: {project}.repos is empty")
+        print(f"  warning: {REPOS_FILE} is empty")
         return
 
-    print(f"  importing {len(repos)} repos from {project}.repos")
+    print(f"  importing {len(repos)} repos from {REPOS_FILE}")
 
     # Import repos in parallel
     errors = 0
