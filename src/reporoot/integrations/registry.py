@@ -9,6 +9,7 @@ from reporoot.integrations.base import Integration, IntegrationContext, Issue
 
 def _all_integrations() -> list[Integration]:
     """Return instances of all built-in integrations."""
+    from reporoot.integrations.claude_md import ClaudeMd
     from reporoot.integrations.gita import Gita
     from reporoot.integrations.go_work import GoWork
     from reporoot.integrations.npm_workspaces import NpmWorkspaces
@@ -21,6 +22,7 @@ def _all_integrations() -> list[Integration]:
         UvWorkspace(),
         Gita(),
         VscodeWorkspace(),
+        ClaudeMd(),
     ]
 
 
