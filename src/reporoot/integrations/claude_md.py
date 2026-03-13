@@ -15,14 +15,42 @@ def _generate_content(ctx: IntegrationContext) -> str:
     from reporoot.workspace import project_fetch_source
 
     lines = [_HEADER, ""]
-    lines.append(f"This is a [reporoot](https://github.com/cwalv/reporoot) workspace.")
-    lines.append(f"Active project: **{ctx.project}**")
 
+    # Overview
+    lines.append(
+        "This is a [reporoot](https://cwalv.github.io/reporoot/) workspace — "
+        "multiple repos under one directory tree, wired into ecosystem workspaces "
+        "(npm, Go, uv, etc.) so cross-repo imports resolve locally. "
+        "Each repo is a normal git clone; the project file declares which repos "
+        "belong together."
+    )
+    lines.append("")
+
+    # Active project
+    lines.append(f"Active project: **{ctx.project}** (`projects/{ctx.project}/`)")
     source = project_fetch_source(ctx.root, ctx.project)
     if source:
-        lines.append(f"Fetch source: `reporoot fetch {source}`")
+        lines.append(f"Reproduce: `reporoot fetch {source}`")
+    lines.append("")
 
-    lines.append(f"Project directory: `projects/{ctx.project}/`")
+    # What is a project
+    lines.append(
+        "A **project** is a named group of repos with a `reporoot.yaml` file "
+        "declaring which repos belong together and their roles. "
+        "Project docs and coordination live in `projects/{name}/`; "
+        "code repos live at `{registry}/{owner}/{repo}/`. "
+        "One project is active at a time — it determines which repos are "
+        "wired into workspace files."
+    )
+    lines.append("")
+
+    # Key commands
+    lines.append("## Commands")
+    lines.append("")
+    lines.append("- `reporoot` — show active project and fetch source")
+    lines.append("- `reporoot activate <project>` — switch projects, regenerate workspace files")
+    lines.append("- `reporoot add <url>` — clone a repo and add to active project")
+    lines.append("- `reporoot check` — find convention violations (orphans, missing roles, stale locks)")
     lines.append("")
 
     # Repo table
@@ -34,18 +62,16 @@ def _generate_content(ctx: IntegrationContext) -> str:
         for repo_path in sorted(ctx.repos):
             info = ctx.repos[repo_path]
             role = info.get("role", "")
-            # Extract inline comment if present (stored during YAML parsing)
             note = info.get("note", "")
             lines.append(f"| `{repo_path}` | {role} | {note} |")
         lines.append("")
 
     # Roles reference
-    lines.append("## Roles")
-    lines.append("")
-    lines.append("- **primary** — our code, change freely")
-    lines.append("- **fork** — forked upstream, prefer upstreaming changes")
-    lines.append("- **dependency** — code we build against, changes need upstream acceptance")
-    lines.append("- **reference** — cloned for reading/study, no local changes")
+    lines.append("Roles indicate change resistance: "
+                 "**primary** (change freely), "
+                 "**fork** (prefer upstreaming), "
+                 "**dependency** (needs upstream acceptance), "
+                 "**reference** (read-only, no local changes).")
     lines.append("")
 
     return "\n".join(lines)
