@@ -22,7 +22,9 @@ from reporoot.workspace import (
 def _export_one(root: Path, local_path: str) -> tuple[str, dict[str, str] | str]:
     """Export one repo. Returns (local_path, export_data_or_error_string)."""
     repo_dir = root / local_path
-    if not repo_dir.is_dir() or not (repo_dir / ".git").exists():
+    if not repo_dir.is_dir():
+        return local_path, f"missing: {local_path} (not cloned)"
+    if not (repo_dir / ".git").exists():
         return local_path, f"not a git repo: {local_path}"
     try:
         data = export_repo(repo_dir)
@@ -31,13 +33,13 @@ def _export_one(root: Path, local_path: str) -> tuple[str, dict[str, str] | str]
         return local_path, str(e)
 
 
-def _lock_project(root: Path, project: str, repos_file: Path) -> None:
-    """Generate the lock file for a single project."""
+def _lock_project(root: Path, project: str, repos_file: Path) -> int:
+    """Generate the lock file for a single project. Returns number of errors."""
     lock_file = project_lock_file(root, project)
     repos = read_repos(repos_file)
     if not repos:
         print(f"  skip {project}: {repos_file.name} is empty")
-        return
+        return 0
 
     print(f"  {project}: exporting {len(repos)} repos")
 
@@ -50,9 +52,13 @@ def _lock_project(root: Path, project: str, repos_file: Path) -> None:
             path, data = future.result()
             if isinstance(data, str):
                 errors.append(data)
-                print(f"    warning: {data}")
+                print(f"    error: {data}")
             else:
                 results[path] = data
+
+    if errors:
+        print(f"    {len(errors)} repo(s) failed")
+        return len(errors)
 
     # Emit YAML in sorted order
     lines = ["repositories:"]
@@ -66,8 +72,7 @@ def _lock_project(root: Path, project: str, repos_file: Path) -> None:
 
     lock_file.write_text(output)
     print(f"    wrote {lock_file.name} ({len(results)} repos)")
-    if errors:
-        print(f"    {len(errors)} repo(s) skipped due to errors")
+    return 0
 
 
 def run() -> None:
@@ -76,7 +81,9 @@ def run() -> None:
     repos_file = active_repos_file(root)
     project = repos_file.parent.name
     print(f"lock: {project}")
-    _lock_project(root, project, repos_file)
+    errors = _lock_project(root, project, repos_file)
+    if errors:
+        raise SystemExit(f"fatal: {errors} repo(s) could not be exported")
 
 
 def run_all() -> None:
@@ -88,5 +95,8 @@ def run_all() -> None:
         return
 
     print(f"lock-all: {len(projects)} project(s)")
+    total_errors = 0
     for project, repos_file in projects:
-        _lock_project(root, project, repos_file)
+        total_errors += _lock_project(root, project, repos_file)
+    if total_errors:
+        raise SystemExit(f"fatal: {total_errors} repo(s) could not be exported")

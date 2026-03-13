@@ -30,6 +30,27 @@ class TestLock:
             run()
 
 
+    def test_missing_repo_is_fatal(self, workspace: Path):
+        """lock should fail when a declared repo is not cloned."""
+        os.chdir(workspace)
+        project_dir = workspace / "projects" / "test-project"
+        project_dir.mkdir(parents=True)
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/missing-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/missing-repo.git\n"
+            "    version: main\n"
+        )
+        (workspace / ".reporoot-active").write_text("test-project\n")
+
+        with pytest.raises(SystemExit, match="could not be exported"):
+            run()
+
+        # Lock file should NOT be written
+        assert not (project_dir / "reporoot.lock").exists()
+
+
 class TestLockAll:
     def test_locks_all_projects(self, workspace_with_project: tuple[Path, Path]):
         workspace, repo = workspace_with_project
