@@ -1,0 +1,6 @@
+#!/bin/sh
+# Run linter and type checker before committing.
+# Install: git config core.hooksPath .githooks
+
+uv run ruff check || exit 1
+uv run pyright || exit 1

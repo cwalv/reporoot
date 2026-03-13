@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from reporoot.integrations.base import IntegrationContext
-from reporoot.integrations.claude_md import ClaudeMd, _HEADER
+from reporoot.integrations.claude_md import _HEADER, ClaudeMd
 
 
 def _ctx(workspace: Path, repos: dict[str, dict], project: str = "test") -> IntegrationContext:

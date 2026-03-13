@@ -212,7 +212,7 @@ def main(argv: list[str] | None = None) -> None:
         print(find_root())
     elif args.command == "fetch":
         if args.source is None:
-            from reporoot.workspace import find_root, require_active_project, project_fetch_source
+            from reporoot.workspace import find_root, project_fetch_source, require_active_project
 
             root = find_root()
             project = require_active_project(root)
