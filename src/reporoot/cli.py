@@ -12,11 +12,18 @@ import argparse
 import sys
 
 
+def _version() -> str:
+    from importlib.metadata import version
+
+    return version("reporoot")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="reporoot",
         description="Reporoot manager",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {_version()}")
     sub = parser.add_subparsers(dest="command")
 
     _raw = argparse.RawDescriptionHelpFormatter
