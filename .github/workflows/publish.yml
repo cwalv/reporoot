@@ -14,10 +14,8 @@ jobs:
         with:
           python-version: "3.13"
       - run: uv sync
-      - run: uv run ruff check
-      - run: uv run ruff format --check
+      - run: ./scripts/check.sh
       - run: uv run pytest
-      - run: uv run pyright
 
   e2e:
     runs-on: ubuntu-latest

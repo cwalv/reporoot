@@ -2,6 +2,4 @@
 # Run linter and type checker before committing.
 # Install: git config core.hooksPath .githooks
 
-uv run ruff check || exit 1
-uv run ruff format --check || exit 1
-uv run pyright || exit 1
+exec "$(git rev-parse --show-toplevel)/scripts/check.sh"
