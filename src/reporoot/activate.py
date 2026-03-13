@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import shutil
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from reporoot.config import registry_names
+from reporoot.git import GitError, clone_or_update
 from reporoot.integrations.registry import run_activate, run_deactivate
 from reporoot.workspace import (
     REPOS_FILE,
@@ -92,7 +94,42 @@ def _hard_clean(root: Path, *, force: bool) -> None:
         print("  hard reset: nothing removed")
 
 
-def run(project: str) -> None:
+def _clone_missing(root: Path, repos: dict[str, dict]) -> None:
+    """Clone any repos that are declared but not present on disk."""
+    missing = {
+        path: info
+        for path, info in repos.items()
+        if not (root / path).exists() and info.get("url")
+    }
+    if not missing:
+        return
+
+    print(f"  cloning {len(missing)} missing repo(s)")
+    errors = 0
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = {
+            pool.submit(
+                clone_or_update,
+                info["url"],
+                root / path,
+                info.get("version"),
+                skip_existing=True,
+            ): path
+            for path, info in missing.items()
+        }
+        for future in as_completed(futures):
+            path = futures[future]
+            try:
+                status = future.result()
+                print(f"    {path}: {status}")
+            except GitError as e:
+                errors += 1
+                print(f"    {path}: error: {e}")
+    if errors:
+        raise SystemExit(f"fatal: {errors} repo(s) failed to clone")
+
+
+def run(project: str, *, fetch: bool = True) -> None:
     root = find_root()
 
     # Validate project exists
@@ -114,6 +151,10 @@ def run(project: str) -> None:
     repos = read_repos(repos_file)
     repos_full = read_repos_full(repos_file)
     integrations_config = repos_full.get("integrations", {})
+
+    # Clone missing repos
+    if fetch:
+        _clone_missing(root, repos)
 
     # Run integration activation hooks
     ran = run_activate(root, project, repos, integrations_config)

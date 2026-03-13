@@ -137,11 +137,12 @@ One project is active at a time. The active project's `reporoot.yaml` file drive
 reporoot activate web-app
 ```
 
-This does three things:
+This does four things:
 
 1. **Cleans** — removes symlinks pointing into `projects/` from the previous activation.
 2. **Sets the pointer** — writes `web-app` to `.reporoot-active` at the reporoot.
-3. **Runs integrations** — each integration's activation hook receives the resolved repo list and generates config files, runs install commands, or performs other setup. See [Integrations](#integrations).
+3. **Clones missing repos** — any repos declared in `reporoot.yaml` but not on disk are cloned in parallel. Use `--no-fetch` to skip this step.
+4. **Runs integrations** — each integration's activation hook receives the resolved repo list and generates config files, runs install commands, or performs other setup. See [Integrations](#integrations).
 
 **Important:** Generated files are not kept in sync automatically. If you edit a project's `reporoot.yaml` (add, remove, or change repos), you must re-run `reporoot activate` to regenerate workspace files and re-run install commands. Without re-activation, ecosystem tools see stale config — `package.json` lists the wrong workspaces, `go.work` points to removed modules, `uv sync` installed packages for repos no longer in the project. `reporoot add` handles this for the add-a-repo case (it re-runs activation hooks after updating `reporoot.yaml`), but manual edits require an explicit `reporoot activate`.
 
@@ -390,15 +391,15 @@ A standalone Python CLI that manages repos following reporoot conventions using 
 | Command | What it does |
 |---|---|
 | `reporoot` | Show active project and help. |
-| `reporoot activate {project}` | Set active project, run integration hooks (npm, go, uv, gita, vscode). |
+| `reporoot activate {project}` | Set active project, clone missing repos, run integration hooks (npm, go, uv, gita, vscode). `--no-fetch` skips cloning. |
 | `reporoot deactivate` | Remove integration-generated files, clear active project. |
 | `reporoot deactivate --hard` | Also remove tool state (node_modules, .venv, etc.) with interactive confirmation. Add `--force` to skip prompts. |
 | `reporoot add {url\|path}` | Clone a repo and register it in the active project's `reporoot.yaml`. URL → derive local path from registry config. With `--role`, sets the role annotation. |
 | `reporoot remove {path}` | Remove a repo from the active project's `reporoot.yaml` and re-run activation hooks. With `--delete`, also removes the clone from disk (confirms unless `--force`). |
 | `reporoot fetch {source}` | Clone a project repo and all its listed repos. Source: URL, `registry/owner/project`, or `owner/project` (defaults to github). |
 | `reporoot resolve` | Print the workspace root path. Useful for scripting: `cd $(reporoot resolve)`. |
-| `reporoot lock` | Snapshot repo versions into the active project's lock file. |
-| `reporoot lock-all` | Snapshot repo versions for all projects. Updates shared repos across projects. |
+| `reporoot lock` | Snapshot repo versions into the active project's lock file. Fails if any declared repo is missing or not a git repo. |
+| `reporoot lock-all` | Snapshot repo versions for all projects. Updates shared repos across projects. Fails if any declared repo is missing. |
 | `reporoot check` | Convention enforcement. Scans all project `reporoot.yaml` files to detect orphaned clones, dangling references, missing role annotations, stale locks, and integration issues. |
 
 ### `reporoot check` and multi-project awareness

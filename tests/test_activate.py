@@ -153,6 +153,61 @@ class TestActivate:
         deactivate(hard=True, force=True)
         # Should not raise, just print "nothing extra to remove"
 
+    def test_clones_missing_repos(self, workspace: Path, git_repo: Path):
+        os.chdir(workspace)
+        project_dir = workspace / "projects" / "myproject"
+        project_dir.mkdir(parents=True)
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/a/svc:\n"
+            "    type: git\n"
+            f"    url: {git_repo}\n"
+            "    version: main\n"
+            "    role: primary\n"
+        )
+
+        # Repo dir does not exist yet
+        assert not (workspace / "github" / "a" / "svc").exists()
+
+        run(project="myproject")
+
+        # Now it should be cloned
+        assert (workspace / "github" / "a" / "svc" / ".git").exists()
+
+    def test_no_fetch_skips_clone(self, workspace: Path, git_repo: Path):
+        os.chdir(workspace)
+        project_dir = workspace / "projects" / "myproject"
+        project_dir.mkdir(parents=True)
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/a/svc:\n"
+            "    type: git\n"
+            f"    url: {git_repo}\n"
+            "    version: main\n"
+            "    role: primary\n"
+        )
+
+        run(project="myproject", fetch=False)
+
+        # Repo should NOT be cloned
+        assert not (workspace / "github" / "a" / "svc").exists()
+
+    def test_clone_error_is_fatal(self, workspace: Path):
+        os.chdir(workspace)
+        project_dir = workspace / "projects" / "myproject"
+        project_dir.mkdir(parents=True)
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/a/svc:\n"
+            "    type: git\n"
+            "    url: file:///nonexistent/repo\n"
+            "    version: main\n"
+            "    role: primary\n"
+        )
+
+        with pytest.raises(SystemExit, match="failed to clone"):
+            run(project="myproject")
+
     def test_invalid_project_raises(self, workspace: Path):
         os.chdir(workspace)
         with pytest.raises(SystemExit, match="no reporoot.yaml"):

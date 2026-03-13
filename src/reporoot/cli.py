@@ -33,14 +33,20 @@ def main(argv: list[str] | None = None) -> None:
         "activate",
         help="Set the active project and run integrations",
         description=(
-            "Set the active project, write .reporoot-active, and run all\n"
-            "enabled integrations (npm workspaces, go work, uv, gita, vscode).\n"
-            "Switching projects automatically cleans up the previous project's\n"
-            "derived files before generating new ones."
+            "Set the active project, write .reporoot-active, clone any missing\n"
+            "repos, and run all enabled integrations (npm workspaces, go work,\n"
+            "uv, gita, vscode). Switching projects automatically cleans up the\n"
+            "previous project's derived files before generating new ones."
         ),
         formatter_class=_raw,
     )
     activate_p.add_argument("project", help="Project name")
+    activate_p.add_argument(
+        "--no-fetch",
+        dest="no_fetch",
+        action="store_true",
+        help="Skip cloning missing repos",
+    )
 
     # reporoot add
     add_p = sub.add_parser(
@@ -182,7 +188,7 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "activate":
         from reporoot.activate import run
 
-        run(project=args.project)
+        run(project=args.project, fetch=not args.no_fetch)
     elif args.command == "add":
         from reporoot.add import run
 
