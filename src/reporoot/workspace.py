@@ -51,6 +51,32 @@ def active_project(root: Path) -> str | None:
     return name
 
 
+def project_fetch_source(root: Path, project: str) -> str | None:
+    """Derive the fetch source shorthand for a project (e.g. 'cwalv/agent-relay').
+
+    Reads the project repo's git remote URL and converts it to the shortest
+    shorthand form suitable for ``reporoot fetch <source>``.
+    Returns None if the project dir has no git remote or URL can't be parsed.
+    """
+    from reporoot.config import parse_repo_url
+    from reporoot.git import remote_url
+
+    project_dir = root / "projects" / project
+    if not project_dir.is_dir():
+        return None
+    try:
+        url = remote_url(project_dir)
+    except Exception:
+        return None
+    try:
+        registry, owner, repo = parse_repo_url(url)
+    except ValueError:
+        return None
+    if registry == "github":
+        return f"{owner}/{repo}"
+    return f"{registry}/{owner}/{repo}"
+
+
 def require_active_project(root: Path) -> str:
     """Like active_project() but raises SystemExit if no project is active."""
     name = active_project(root)

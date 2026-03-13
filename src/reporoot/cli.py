@@ -78,7 +78,7 @@ def main(argv: list[str] | None = None) -> None:
         ),
         formatter_class=_raw,
     )
-    fetch_p.add_argument("source", help="URL, registry/owner/project, or owner/project")
+    fetch_p.add_argument("source", nargs="?", default=None, help="URL, registry/owner/project, or owner/project")
 
     # reporoot deactivate
     deactivate_p = sub.add_parser(
@@ -154,13 +154,16 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     if args.command is None:
-        from reporoot.workspace import active_project, find_root
+        from reporoot.workspace import active_project, find_root, project_fetch_source
 
         try:
             root = find_root()
             project = active_project(root)
             if project:
                 print(f"active project: {project}")
+                source = project_fetch_source(root, project)
+                if source:
+                    print(f"         fetch: {source}")
             else:
                 print("no active project")
         except SystemExit:
@@ -201,9 +204,20 @@ def main(argv: list[str] | None = None) -> None:
 
         print(find_root())
     elif args.command == "fetch":
-        from reporoot.fetch import run
+        if args.source is None:
+            from reporoot.workspace import find_root, require_active_project, project_fetch_source
 
-        run(source=args.source)
+            root = find_root()
+            project = require_active_project(root)
+            source = project_fetch_source(root, project)
+            if source:
+                print(source)
+            else:
+                raise SystemExit(f"fatal: cannot determine fetch source for project '{project}'")
+        else:
+            from reporoot.fetch import run
+
+            run(source=args.source)
     elif args.command == "lock":
         from reporoot.lock import run
 
