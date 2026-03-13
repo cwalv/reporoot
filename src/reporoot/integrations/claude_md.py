@@ -67,11 +67,13 @@ def _generate_content(ctx: IntegrationContext) -> str:
         lines.append("")
 
     # Roles reference
-    lines.append("Roles indicate change resistance: "
-                 "**primary** (change freely), "
-                 "**fork** (prefer upstreaming), "
-                 "**dependency** (needs upstream acceptance), "
-                 "**reference** (read-only, no local changes).")
+    lines.append(
+        "Roles indicate change resistance: "
+        "**primary** (change freely), "
+        "**fork** (prefer upstreaming), "
+        "**dependency** (needs upstream acceptance), "
+        "**reference** (read-only, no local changes)."
+    )
     lines.append("")
 
     return "\n".join(lines)
