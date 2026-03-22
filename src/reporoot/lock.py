@@ -1,6 +1,6 @@
 """reporoot lock — regenerate lock file with exact commit hashes.
 
-reporoot lock      → lock the active project
+reporoot lock      → lock the active project (inferred from CWD)
 reporoot lock-all  → lock all projects on disk
 """
 
@@ -11,16 +11,30 @@ from pathlib import Path
 
 from reporoot.git import GitError, export_repo
 from reporoot.workspace import (
-    active_repos_file,
     all_project_repos_files,
+    bare_repo_path,
     find_root,
+    infer_context,
     project_lock_file,
+    project_repos_file,
     read_repos,
 )
 
 
 def _export_one(root: Path, local_path: str) -> tuple[str, dict[str, str] | str]:
-    """Export one repo. Returns (local_path, export_data_or_error_string)."""
+    """Export one repo. Returns (local_path, export_data_or_error_string).
+
+    Tries the bare repo path first (github/owner/repo.git), then falls
+    back to the regular clone path (github/owner/repo).
+    """
+    bare = bare_repo_path(root, local_path)
+    if bare.is_dir():
+        try:
+            data = export_repo(bare)
+            return local_path, data
+        except GitError as e:
+            return local_path, str(e)
+
     repo_dir = root / local_path
     if not repo_dir.is_dir():
         return local_path, f"missing: {local_path} (not cloned)"
@@ -76,12 +90,15 @@ def _lock_project(root: Path, project: str, repos_file: Path) -> int:
 
 
 def run() -> None:
-    """Lock the active project."""
-    root = find_root()
-    repos_file = active_repos_file(root)
-    project = repos_file.parent.name
-    print(f"lock: {project}")
-    errors = _lock_project(root, project, repos_file)
+    """Lock the active project (inferred from CWD or .reporoot-active)."""
+    ctx = infer_context()
+    if ctx.project is None:
+        raise SystemExit("fatal: no active project (run 'reporoot activate <project>' or cd into a workspace)")
+    repos_file = project_repos_file(ctx.root, ctx.project)
+    if not repos_file.exists():
+        raise SystemExit(f"fatal: no reporoot.yaml found for project '{ctx.project}'")
+    print(f"lock: {ctx.project}")
+    errors = _lock_project(ctx.root, ctx.project, repos_file)
     if errors:
         raise SystemExit(f"fatal: {errors} repo(s) could not be exported")
 

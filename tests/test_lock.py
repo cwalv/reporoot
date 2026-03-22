@@ -29,6 +29,62 @@ class TestLock:
         with pytest.raises(SystemExit, match="no active project"):
             run()
 
+    def test_lock_from_workspace_cwd(self, workspace: Path, bare_repo: Path):
+        """Lock infers project from CWD when inside a workspace."""
+        project_dir = workspace / "projects" / "test-project"
+        project_dir.mkdir(parents=True)
+
+        store = workspace / "github" / "test-owner" / "test-repo.git"
+        store.parent.mkdir(parents=True)
+        bare_repo.rename(store)
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+        )
+
+        # Create a workspace and cd into it
+        from reporoot.workspace import create_workspace
+
+        ws = create_workspace(workspace, "test-project", "default")
+        os.chdir(ws)
+
+        run()
+        lock = project_dir / "reporoot.lock"
+        assert lock.exists()
+        repos = read_repos(lock)
+        assert "github/test-owner/test-repo" in repos
+        assert len(repos["github/test-owner/test-repo"]["version"]) == 40
+
+    def test_lock_bare_repo(self, workspace: Path, bare_repo: Path):
+        """Lock exports from bare repos when available."""
+        project_dir = workspace / "projects" / "test-project"
+        project_dir.mkdir(parents=True)
+
+        store = workspace / "github" / "test-owner" / "test-repo.git"
+        store.parent.mkdir(parents=True)
+        bare_repo.rename(store)
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+        )
+
+        (workspace / ".reporoot-active").write_text("test-project\n")
+        os.chdir(workspace)
+
+        run()
+        lock = project_dir / "reporoot.lock"
+        assert lock.exists()
+        repos = read_repos(lock)
+        assert "github/test-owner/test-repo" in repos
+
 
     def test_missing_repo_is_fatal(self, workspace: Path):
         """lock should fail when a declared repo is not cloned."""
@@ -57,6 +113,30 @@ class TestLockAll:
         os.chdir(workspace)
         run_all()
         lock = workspace / "projects" / "test-project" / "reporoot.lock"
+        assert lock.exists()
+        repos = read_repos(lock)
+        assert "github/test-owner/test-repo" in repos
+
+    def test_locks_bare_repos(self, workspace: Path, bare_repo: Path):
+        """lock-all exports from bare repos."""
+        project_dir = workspace / "projects" / "test-project"
+        project_dir.mkdir(parents=True)
+
+        store = workspace / "github" / "test-owner" / "test-repo.git"
+        store.parent.mkdir(parents=True)
+        bare_repo.rename(store)
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+        )
+
+        os.chdir(workspace)
+        run_all()
+        lock = project_dir / "reporoot.lock"
         assert lock.exists()
         repos = read_repos(lock)
         assert "github/test-owner/test-repo" in repos
