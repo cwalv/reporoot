@@ -220,7 +220,7 @@ def create_workspace(root: Path, project: str, name: str = "default") -> Path:
 
     Returns the workspace directory path.
     """
-    from reporoot.git import worktree_add
+    from reporoot.git import run_git, worktree_add
 
     ws = workspace_dir(root, project, name)
     if ws.exists():
@@ -245,6 +245,9 @@ def create_workspace(root: Path, project: str, name: str = "default") -> Path:
         branch = f"{name}/{version}"
         track = f"origin/{version}"
         worktree_add(bare, wt_dest, branch, track=track)
+        # Set push.default=upstream so `git push` maps the workspace branch
+        # (e.g. default/main) to its tracked upstream (origin/main) automatically.
+        run_git("-C", str(wt_dest), "config", "push.default", "upstream")
         print(f"  worktree: {repo_path} ({branch} -> {track})")
 
     return ws
