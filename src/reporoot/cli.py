@@ -1,9 +1,20 @@
-"""reporoot — workspace manager.
+"""reporoot — multi-repo workspace manager.
 
-Conventions:
-- Normal repos at {registry}/{owner}/{repo}/ (code, build tools see these)
-- Project repos at projects/{name}/ (coordination, build tools ignore these)
-- One project active at a time (.reporoot-active), drives ecosystem workspace files
+Manages workspaces of multiple git repos wired into ecosystem tools (npm, Go,
+uv, etc.).  A project declares which repos belong together; workspaces are
+checked-out instances of a project with git worktrees and integration files.
+
+Commands:
+  reporoot                          Show current context (root, project, workspace, repos)
+  reporoot workspace <project>      Create/delete/sync/list workspaces
+  reporoot fetch [source]           Fetch a project and clone its repos
+  reporoot add <source>             Add a repo to the active project
+  reporoot remove <path>            Remove a repo from the active project
+  reporoot lock                     Snapshot repo versions for the active project
+  reporoot lock-all                 Snapshot repo versions for all projects
+  reporoot check                    Run convention enforcement checks
+  reporoot activate <project>       (compat) Set active project
+  reporoot deactivate               (compat) Clear active project
 """
 
 from __future__ import annotations
@@ -21,17 +32,39 @@ def _version() -> str:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="reporoot",
-        description="Reporoot manager",
+        description="Reporoot workspace manager",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {_version()}")
     sub = parser.add_subparsers(dest="command")
 
     _raw = argparse.RawDescriptionHelpFormatter
 
-    # reporoot activate
+    # reporoot workspace
+    workspace_p = sub.add_parser(
+        "workspace",
+        help="Create, delete, sync, or list workspaces",
+        description=(
+            "Manage workspaces for a project. A workspace is a checked-out\n"
+            "instance with git worktrees and integration files.\n"
+            "\n"
+            "  reporoot workspace myproject           Create default workspace\n"
+            "  reporoot workspace myproject dev        Create named workspace\n"
+            "  reporoot workspace myproject --delete   Delete default workspace\n"
+            "  reporoot workspace myproject --sync     Sync with manifest\n"
+            "  reporoot workspace myproject --list     List workspaces"
+        ),
+        formatter_class=_raw,
+    )
+    workspace_p.add_argument("project", help="Project name")
+    workspace_p.add_argument("name", nargs="?", default="default", help="Workspace name (default: 'default')")
+    workspace_p.add_argument("--delete", action="store_true", help="Delete the workspace")
+    workspace_p.add_argument("--sync", action="store_true", help="Sync workspace with project manifest")
+    workspace_p.add_argument("--list", action="store_true", dest="list_ws", help="List workspaces for the project")
+
+    # reporoot activate (backward compat)
     activate_p = sub.add_parser(
         "activate",
-        help="Set the active project and run integrations",
+        help="(compat) Set the active project and run integrations",
         description=(
             "Set the active project, write .reporoot-active, clone any missing\n"
             "repos, and run all enabled integrations (npm workspaces, go work,\n"
@@ -93,10 +126,10 @@ def main(argv: list[str] | None = None) -> None:
     )
     fetch_p.add_argument("source", nargs="?", default=None, help="URL, registry/owner/project, or owner/project")
 
-    # reporoot deactivate
+    # reporoot deactivate (backward compat)
     deactivate_p = sub.add_parser(
         "deactivate",
-        help="Remove derived files, clear active project",
+        help="(compat) Remove derived files, clear active project",
         description=(
             "Remove all integration-generated files (package.json, go.work,\n"
             "pyproject.toml, .gita/, .code-workspace) and clear the active\n"
@@ -167,28 +200,22 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     if args.command is None:
-        from reporoot.workspace import active_project, find_root, project_fetch_source
-
-        try:
-            root = find_root()
-            project = active_project(root)
-            if project:
-                print(f"active project: {project}")
-                source = project_fetch_source(root, project)
-                if source:
-                    print(f"         fetch: {source}")
-            else:
-                print("no active project")
-        except SystemExit:
-            pass
+        _show_context()
         print()
         parser.print_help()
         sys.exit(1)
 
-    if args.command == "activate":
-        from reporoot.activate import run
+    if args.command == "workspace":
+        from reporoot.activate import workspace_list, workspace_run
 
-        run(project=args.project, fetch=not args.no_fetch)
+        if args.list_ws:
+            workspace_list(args.project)
+        else:
+            workspace_run(args.project, args.name, delete=args.delete, sync=args.sync)
+    elif args.command == "activate":
+        from reporoot.activate import run as activate_run
+
+        activate_run(project=args.project)
     elif args.command == "add":
         from reporoot.add import run
 
@@ -243,3 +270,39 @@ def main(argv: list[str] | None = None) -> None:
         from reporoot.check import run
 
         run(verbose=args.verbose)
+
+
+def _show_context() -> None:
+    """Display current context: root, project, workspace, and repos."""
+    from reporoot.workspace import infer_context, list_workspaces, project_fetch_source, read_repos
+
+    try:
+        ctx = infer_context()
+    except SystemExit:
+        return
+
+    print(f"       root: {ctx.root}")
+
+    if ctx.project:
+        print(f"    project: {ctx.project}")
+        source = project_fetch_source(ctx.root, ctx.project)
+        if source:
+            print(f"      fetch: {source}")
+        if ctx.workspace:
+            print(f"  workspace: {ctx.workspace}")
+        else:
+            workspaces = list_workspaces(ctx.root, ctx.project)
+            if workspaces:
+                print(f" workspaces: {', '.join(workspaces)}")
+
+        from reporoot.workspace import project_repos_file
+
+        repos_file = project_repos_file(ctx.root, ctx.project)
+        if repos_file.exists():
+            repos = read_repos(repos_file)
+            if repos:
+                print("      repos:")
+                for repo_path in repos:
+                    print(f"        {repo_path}")
+    else:
+        print("no active project")
