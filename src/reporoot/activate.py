@@ -1,9 +1,15 @@
-"""reporoot activate / deactivate — manage the active project.
+"""reporoot workspace — create, delete, sync, and list workspaces.
 
 Usage:
-  reporoot activate web-app     Set active project, run integrations (npm, go, gita, etc.)
-  reporoot deactivate           Remove derived files, clear active project
-  reporoot deactivate --hard    Also remove tool state (node_modules, .venv, etc.)
+  reporoot workspace myproject             Create default workspace, run integrations
+  reporoot workspace myproject dev         Create named workspace
+  reporoot workspace myproject --delete    Delete default workspace
+  reporoot workspace myproject --sync      Sync default workspace with manifest
+  reporoot workspace myproject --list      List workspaces for project
+
+Backward-compat (migration period):
+  reporoot activate <project>              Old single-project activation
+  reporoot deactivate [--hard] [--force]   Old deactivation
 """
 
 from __future__ import annotations
@@ -19,14 +25,76 @@ from reporoot.integrations.registry import run_activate, run_deactivate
 from reporoot.workspace import (
     REPOS_FILE,
     active_project,
+    create_workspace,
+    delete_workspace,
     find_root,
+    list_workspaces,
     project_repos_file,
     read_repos,
     read_repos_full,
+    sync_workspace,
+    workspace_dir,
 )
 
 # Dirs at root that are never removed by --hard
 _ALWAYS_KEEP = {"projects"}
+
+
+# --- Workspace commands ---
+
+
+def workspace_run(
+    project: str,
+    name: str = "default",
+    *,
+    delete: bool = False,
+    sync: bool = False,
+) -> None:
+    """Create, delete, or sync a workspace for a project.
+
+    Default (no flags): create workspace and run integration activation.
+    --delete: delete workspace and run integration deactivation.
+    --sync: sync workspace worktrees with the project manifest.
+    """
+    root = find_root()
+
+    if delete:
+        ws = workspace_dir(root, project, name)
+        run_deactivate(ws)
+        delete_workspace(root, project, name)
+        return
+
+    if sync:
+        sync_workspace(root, project, name)
+        return
+
+    # Create workspace
+    ws = create_workspace(root, project, name)
+
+    # Read repos and integration config, then run activation
+    repos_file = project_repos_file(root, project)
+    repos = read_repos(repos_file)
+    repos_full = read_repos_full(repos_file)
+    integrations_config = repos_full.get("integrations", {})
+
+    ran = run_activate(ws, project, repos, integrations_config)
+    if not ran:
+        print("  no integrations ran")
+
+
+def workspace_list(project: str) -> list[str]:
+    """List workspaces for a project and print them."""
+    root = find_root()
+    names = list_workspaces(root, project)
+    if not names:
+        print(f"no workspaces for project '{project}'")
+    else:
+        for name in names:
+            print(f"  {name}")
+    return names
+
+
+# --- Backward-compat (migration period) ---
 
 
 def deactivate(hard: bool = False, force: bool = False) -> None:

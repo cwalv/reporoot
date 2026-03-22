@@ -1,15 +1,16 @@
-"""Tests for reporoot activate/deactivate commands and integration registry dispatch."""
+"""Tests for reporoot activate/deactivate commands, workspace commands, and integration registry dispatch."""
 
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from conftest import make_repo_with_file
 
-from reporoot.activate import deactivate, run
+from reporoot.activate import deactivate, run, workspace_list, workspace_run
 from reporoot.integrations.registry import run_activate, run_deactivate
 
 
@@ -280,3 +281,223 @@ class TestRegistryDispatch:
 
     def test_deactivate_noop_if_no_files(self, workspace: Path):
         run_deactivate(workspace)  # should not raise
+
+
+def _setup_bare_repo(workspace: Path, git_repo: Path, repo_path: str) -> Path:
+    """Helper: create a bare clone at the expected store location."""
+    bare = workspace / Path(repo_path).parent / f"{Path(repo_path).name}.git"
+    bare.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "clone", "--bare", str(git_repo), str(bare)],
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(bare), "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"],
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(bare), "fetch", "origin"],
+        capture_output=True,
+        check=True,
+    )
+    return bare
+
+
+class TestWorkspaceRun:
+    """Tests for workspace_run: create, delete, sync workspaces."""
+
+    def test_create_workspace(self, workspace: Path, git_repo: Path):
+        os.chdir(workspace)
+        project_dir = workspace / "projects" / "myproject"
+        project_dir.mkdir(parents=True)
+
+        _setup_bare_repo(workspace, git_repo, "github/test-owner/test-repo")
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+        )
+
+        workspace_run(project="myproject", name="dev")
+
+        ws_dir = workspace / "projects" / "myproject" / "workspaces" / "dev"
+        assert ws_dir.exists()
+        assert (ws_dir / "github" / "test-owner" / "test-repo" / "README.md").exists()
+
+    def test_create_workspace_runs_integrations(self, workspace: Path, tmp_path: Path):
+        os.chdir(workspace)
+        project_dir = workspace / "projects" / "myproject"
+        project_dir.mkdir(parents=True)
+
+        # Create a git repo with a pyproject.toml on main
+        repo = tmp_path / "pyrepo"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-b", "main"], cwd=repo, capture_output=True, check=True)
+        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=repo, capture_output=True, check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, capture_output=True, check=True)
+        (repo / "pyproject.toml").write_text('[project]\nname = "test-repo"\nversion = "0.1.0"\n')
+        subprocess.run(["git", "add", "."], cwd=repo, capture_output=True, check=True)
+        subprocess.run(["git", "commit", "-m", "init"], cwd=repo, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/test-owner/test-repo.git"],
+            cwd=repo,
+            capture_output=True,
+            check=True,
+        )
+
+        _setup_bare_repo(workspace, repo, "github/test-owner/test-repo")
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+        )
+
+        workspace_run(project="myproject", name="dev")
+
+        ws_dir = workspace / "projects" / "myproject" / "workspaces" / "dev"
+        # Integration files should be generated in the workspace dir, not root
+        assert (ws_dir / "pyproject.toml").exists()
+        assert "[tool.uv.workspace]" in (ws_dir / "pyproject.toml").read_text()
+
+    def test_create_workspace_default_name(self, workspace: Path, git_repo: Path):
+        os.chdir(workspace)
+        project_dir = workspace / "projects" / "myproject"
+        project_dir.mkdir(parents=True)
+
+        _setup_bare_repo(workspace, git_repo, "github/test-owner/test-repo")
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+        )
+
+        workspace_run(project="myproject")
+
+        ws_dir = workspace / "projects" / "myproject" / "workspaces" / "default"
+        assert ws_dir.exists()
+
+    def test_delete_workspace(self, workspace: Path, git_repo: Path):
+        os.chdir(workspace)
+        project_dir = workspace / "projects" / "myproject"
+        project_dir.mkdir(parents=True)
+
+        _setup_bare_repo(workspace, git_repo, "github/test-owner/test-repo")
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+        )
+
+        workspace_run(project="myproject", name="to-delete")
+
+        ws_dir = workspace / "projects" / "myproject" / "workspaces" / "to-delete"
+        assert ws_dir.exists()
+
+        workspace_run(project="myproject", name="to-delete", delete=True)
+        assert not ws_dir.exists()
+
+    def test_delete_workspace_runs_deactivation(self, workspace: Path, git_repo: Path):
+        os.chdir(workspace)
+        project_dir = workspace / "projects" / "myproject"
+        project_dir.mkdir(parents=True)
+
+        _setup_bare_repo(workspace, git_repo, "github/test-owner/test-repo")
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+        )
+
+        workspace_run(project="myproject", name="del-test")
+
+        ws_dir = workspace / "projects" / "myproject" / "workspaces" / "del-test"
+        # Place an integration-managed file in the workspace
+        (ws_dir / "package.json").write_text("{}")
+
+        workspace_run(project="myproject", name="del-test", delete=True)
+        assert not ws_dir.exists()
+
+    def test_sync_workspace(self, workspace: Path, git_repo: Path):
+        os.chdir(workspace)
+        project_dir = workspace / "projects" / "myproject"
+        project_dir.mkdir(parents=True)
+
+        _setup_bare_repo(workspace, git_repo, "github/test-owner/test-repo")
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+        )
+
+        workspace_run(project="myproject", name="sync-test")
+
+        # Add a second repo
+        _setup_bare_repo(workspace, git_repo, "github/test-owner/second")
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+            "  github/test-owner/second:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/second.git\n"
+            "    version: main\n"
+        )
+
+        workspace_run(project="myproject", name="sync-test", sync=True)
+
+        ws_dir = workspace / "projects" / "myproject" / "workspaces" / "sync-test"
+        assert (ws_dir / "github" / "test-owner" / "second" / "README.md").exists()
+
+
+class TestWorkspaceList:
+    """Tests for workspace_list."""
+
+    def test_lists_workspaces(self, workspace: Path, git_repo: Path):
+        os.chdir(workspace)
+        project_dir = workspace / "projects" / "myproject"
+        project_dir.mkdir(parents=True)
+
+        _setup_bare_repo(workspace, git_repo, "github/test-owner/test-repo")
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+        )
+
+        workspace_run(project="myproject", name="alpha")
+        workspace_run(project="myproject", name="beta")
+
+        names = workspace_list(project="myproject")
+        assert names == ["alpha", "beta"]
+
+    def test_no_workspaces(self, workspace: Path):
+        os.chdir(workspace)
+        (workspace / "projects" / "myproject").mkdir(parents=True)
+
+        names = workspace_list(project="myproject")
+        assert names == []
