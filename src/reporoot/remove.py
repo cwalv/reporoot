@@ -11,14 +11,17 @@ from __future__ import annotations
 
 import shutil
 
+from reporoot.git import worktree_remove
 from reporoot.integrations.registry import run_activate
 from reporoot.workspace import (
-    find_root,
+    bare_repo_path,
+    infer_context,
     project_repos_file,
     read_repos,
     read_repos_full,
     remove_entry,
     require_active_project,
+    workspace_dir,
 )
 
 
@@ -28,8 +31,12 @@ def run(
     delete: bool = False,
     force: bool = False,
 ) -> None:
-    root = find_root()
-    target_project = project or require_active_project(root)
+    # Infer context from CWD (root, project, workspace)
+    ctx = infer_context()
+    root = ctx.root
+    in_workspace = ctx.workspace is not None
+
+    target_project = project or (ctx.project if in_workspace else None) or require_active_project(root)
     repos_file = project_repos_file(root, target_project)
 
     # Verify the entry exists before removing
@@ -38,9 +45,22 @@ def run(
         raise SystemExit(f"fatal: {path} not found in {repos_file.name}")
 
     print(f"remove: {path}")
+
+    # If in a workspace, remove the worktree first
+    if in_workspace and ctx.workspace:
+        ws_dir = workspace_dir(root, target_project, ctx.workspace)
+        wt_path = ws_dir / path
+        if wt_path.exists():
+            bare = bare_repo_path(root, path)
+            worktree_remove(bare, wt_path, force=True)
+            print(f"  removed worktree: {path}")
+        else:
+            print(f"  worktree not found in workspace: {path}")
+        # Bare repo stays — it's a shared resource that may be used by other workspaces
+
     remove_entry(repos_file, path)
 
-    # Optionally delete the clone from disk
+    # Optionally delete the clone from disk (only for non-workspace / legacy clones)
     if delete:
         clone_path = root / path
         if clone_path.exists():
@@ -58,4 +78,9 @@ def run(
     repos = read_repos(repos_file)
     full = read_repos_full(repos_file)
     integrations_config = full.get("integrations", {})
-    run_activate(root, target_project, repos, integrations_config)
+    # If in a workspace, target integration activation at the workspace dir
+    if in_workspace and ctx.workspace:
+        activate_root = workspace_dir(root, target_project, ctx.workspace)
+    else:
+        activate_root = root
+    run_activate(activate_root, target_project, repos, integrations_config)

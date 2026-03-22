@@ -6,8 +6,8 @@ Usage:
   reporoot fetch https://github.com/cwalv/agent-relay full URL
 
 Clones the project repo to projects/{project}/, reads reporoot.yaml,
-imports all listed repos, and activates the project.  If run outside an
-existing reporoot, bootstraps cwd as a new root.
+bare-clones all listed repos, and creates a default workspace.  If run
+outside an existing reporoot, bootstraps cwd as a new root.
 """
 
 from __future__ import annotations
@@ -15,10 +15,15 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from reporoot.activate import run as activate
 from reporoot.config import normalize_repo_url, parse_repo_url, resolve_shorthand
 from reporoot.git import GitError, clone, clone_or_update
-from reporoot.workspace import REPOS_FILE, find_root, read_repos
+from reporoot.workspace import (
+    REPOS_FILE,
+    bare_repo_path,
+    create_workspace,
+    find_root,
+    read_repos,
+)
 
 
 def _is_url(source: str) -> bool:
@@ -30,12 +35,27 @@ def _import_one(
     local_path: str,
     info: dict,
 ) -> tuple[str, str]:
-    """Import one repo. Returns (local_path, status_message)."""
+    """Import one repo as a bare clone. Returns (local_path, status_message).
+
+    If a regular (non-bare) clone already exists at the canonical path,
+    it is left as-is for backward compatibility.
+    """
     url = info.get("url", "")
     version = info.get("version")
-    target = root / local_path
+    regular_target = root / local_path
+
+    # Backward compat: if a regular clone exists, leave it alone
+    if regular_target.exists():
+        try:
+            status = clone_or_update(url, regular_target, version, skip_existing=True)
+            return local_path, status
+        except GitError as e:
+            return local_path, f"error: {e}"
+
+    # Create bare clone
+    bare_target = bare_repo_path(root, local_path)
     try:
-        status = clone_or_update(url, target, version, skip_existing=True)
+        status = clone_or_update(url, bare_target, skip_existing=True, bare=True)
         return local_path, status
     except GitError as e:
         return local_path, f"error: {e}"
@@ -70,20 +90,21 @@ def run(source: str) -> None:
 
     target = root / "projects" / project
 
-    if target.exists():
-        msg = f"fatal: project already exists: projects/{project}/"
-        if owner:
-            msg += f"\nhint: to scope under owner, clone manually to projects/{owner}/{project}/"
-        raise SystemExit(msg)
+    # Handle existing project dir gracefully: if the project dir exists
+    # but repos may be missing, skip the project clone and process repos.
+    project_already_exists = target.exists()
 
-    # Clone the project repo
-    print(f"fetch: {source}")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    print(f"  git clone {url} -> projects/{project}/")
-    try:
-        clone(url, target)
-    except GitError as e:
-        raise SystemExit(f"fatal: {e}")
+    if not project_already_exists:
+        # Clone the project repo
+        print(f"fetch: {source}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        print(f"  git clone {url} -> projects/{project}/")
+        try:
+            clone(url, target)
+        except GitError as e:
+            raise SystemExit(f"fatal: {e}")
+    else:
+        print(f"fetch: {source} (project dir exists, processing repos)")
 
     # Read the project's reporoot.yaml and import
     repos_file = target / REPOS_FILE
@@ -98,7 +119,7 @@ def run(source: str) -> None:
 
     print(f"  importing {len(repos)} repos from {REPOS_FILE}")
 
-    # Import repos in parallel
+    # Import repos as bare clones in parallel
     errors = 0
     with ThreadPoolExecutor(max_workers=10) as pool:
         futures = {pool.submit(_import_one, root, path, info): path for path, info in repos.items()}
@@ -111,6 +132,12 @@ def run(source: str) -> None:
     if errors:
         print(f"  warning: {errors} repo(s) had errors")
 
-    # Activate the fetched project
+    # Create default workspace (worktrees from bare repos)
     print()
-    activate(project=project)
+    print(f"  creating default workspace for {project}")
+    try:
+        ws = create_workspace(root, project, "default")
+        print(f"  workspace ready: {ws}")
+    except SystemExit:
+        # Workspace may already exist (e.g., re-fetching an existing project)
+        print("  default workspace already exists, skipping")

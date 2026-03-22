@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from reporoot.add import run
-from reporoot.workspace import read_repos
+from reporoot.workspace import bare_repo_path, read_repos
 
 
 class TestAddFromLocal:
@@ -70,6 +71,94 @@ class TestAddFromLocal:
         assert repos["github/test-owner/test-repo"]["role"] == "primary"
         content = project_repos.read_text()
         assert "# our code" in content
+
+
+class TestAddBareRepo:
+    """Tests for add in workspace context (bare clone + worktree flow)."""
+
+    def test_add_url_creates_bare_clone_and_worktree(self, workspace_with_bare_repo: tuple[Path, Path], git_repo: Path):
+        root, _ = workspace_with_bare_repo
+        ws_dir = root / "projects" / "test-project" / "workspaces" / "default"
+        os.chdir(ws_dir)
+
+        # Create a second git repo to add
+        second = git_repo.parent / "repo2"
+        second.mkdir()
+        subprocess.run(["git", "init", "-b", "main"], cwd=second, capture_output=True, check=True)
+        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=second, capture_output=True, check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=second, capture_output=True, check=True)
+        (second / "README.md").write_text("hello\n")
+        subprocess.run(["git", "add", "."], cwd=second, capture_output=True, check=True)
+        subprocess.run(["git", "commit", "-m", "init"], cwd=second, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/other-owner/other-repo.git"],
+            cwd=second,
+            capture_output=True,
+            check=True,
+        )
+
+        # Use the local repo as the "URL" (file:// protocol)
+        run(source=str(second))
+
+        # Bare clone should exist
+        bare = bare_repo_path(root, "github/other-owner/other-repo")
+        assert bare.exists()
+        assert bare.name == "other-repo.git"
+
+        # Worktree should exist in the workspace
+        wt = ws_dir / "github" / "other-owner" / "other-repo"
+        assert wt.exists()
+        assert (wt / "README.md").exists()
+
+        # Should be in project reporoot.yaml
+        project_repos = read_repos(root / "projects" / "test-project" / "reporoot.yaml")
+        assert "github/other-owner/other-repo" in project_repos
+
+    def test_add_existing_bare_skips_clone(self, workspace_with_bare_repo: tuple[Path, Path]):
+        root, bare = workspace_with_bare_repo
+        ws_dir = root / "projects" / "test-project" / "workspaces" / "default"
+        os.chdir(ws_dir)
+
+        # The bare repo already exists — add should skip clone but still succeed
+        # (worktree also already exists from fixture)
+        run(source="https://github.com/test-owner/test-repo.git", role="primary")
+
+        project_repos = read_repos(root / "projects" / "test-project" / "reporoot.yaml")
+        assert "github/test-owner/test-repo" in project_repos
+
+    def test_add_falls_back_to_regular_clone_outside_workspace(
+        self, workspace_with_project: tuple[Path, Path], git_repo: Path
+    ):
+        """When not in a workspace, add should use the legacy regular clone flow."""
+        workspace, _ = workspace_with_project
+        os.chdir(workspace)
+
+        # Create a second git repo to add
+        second = git_repo.parent / "repo2"
+        second.mkdir()
+        subprocess.run(["git", "init", "-b", "main"], cwd=second, capture_output=True, check=True)
+        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=second, capture_output=True, check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=second, capture_output=True, check=True)
+        (second / "README.md").write_text("hello\n")
+        subprocess.run(["git", "add", "."], cwd=second, capture_output=True, check=True)
+        subprocess.run(["git", "commit", "-m", "init"], cwd=second, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/other-owner/other-repo.git"],
+            cwd=second,
+            capture_output=True,
+            check=True,
+        )
+
+        run(source=str(second))
+
+        # Regular clone (not bare) should exist
+        target = workspace / "github" / "other-owner" / "other-repo"
+        assert target.exists()
+        assert (target / ".git").is_dir()  # regular clone, not bare
+
+        # No bare clone should exist
+        bare = bare_repo_path(workspace, "github/other-owner/other-repo")
+        assert not bare.exists()
 
 
 class TestAddInvalidSource:

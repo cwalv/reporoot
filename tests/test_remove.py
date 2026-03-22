@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from reporoot.git import worktree_list
 from reporoot.remove import run
 from reporoot.workspace import read_repos
 
@@ -90,3 +91,52 @@ class TestRemove:
         assert "github/test-owner/test-repo" not in read_repos(repos_file)
         captured = capsys.readouterr()
         assert "not on disk" in captured.out
+
+
+class TestRemoveBareRepo:
+    """Tests for remove in workspace context (worktree removal flow)."""
+
+    def test_remove_in_workspace_removes_worktree(self, workspace_with_bare_repo: tuple[Path, Path]):
+        root, bare = workspace_with_bare_repo
+        ws_dir = root / "projects" / "test-project" / "workspaces" / "default"
+        os.chdir(ws_dir)
+
+        wt_path = ws_dir / "github" / "test-owner" / "test-repo"
+        assert wt_path.exists()
+
+        run(path="github/test-owner/test-repo")
+
+        # Worktree should be removed
+        assert not wt_path.exists()
+
+        # Bare repo should still exist (shared resource)
+        assert bare.exists()
+
+        # Entry should be removed from reporoot.yaml
+        repos_file = root / "projects" / "test-project" / "reporoot.yaml"
+        assert "github/test-owner/test-repo" not in read_repos(repos_file)
+
+    def test_remove_in_workspace_bare_repo_has_no_worktrees(self, workspace_with_bare_repo: tuple[Path, Path]):
+        root, bare = workspace_with_bare_repo
+        ws_dir = root / "projects" / "test-project" / "workspaces" / "default"
+        os.chdir(ws_dir)
+
+        run(path="github/test-owner/test-repo")
+
+        # After removing, the bare repo should have no worktrees left
+        worktrees = worktree_list(bare)
+        assert len(worktrees) == 0
+
+    def test_remove_outside_workspace_uses_legacy_flow(self, workspace_with_project: tuple[Path, Path]):
+        """When not in a workspace, remove should use the legacy flow."""
+        workspace, repo = workspace_with_project
+        os.chdir(workspace)
+
+        repos_file = workspace / "projects" / "test-project" / "reporoot.yaml"
+        assert "github/test-owner/test-repo" in read_repos(repos_file)
+
+        run(path="github/test-owner/test-repo")
+
+        assert "github/test-owner/test-repo" not in read_repos(repos_file)
+        # Clone should still be on disk (no --delete)
+        assert repo.exists()

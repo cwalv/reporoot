@@ -98,6 +98,72 @@ def workspace_with_project(workspace: Path, git_repo: Path) -> tuple[Path, Path]
     return workspace, target
 
 
+@pytest.fixture
+def workspace_with_bare_repo(workspace: Path, git_repo: Path) -> tuple[Path, Path]:
+    """Workspace with an active project, a bare repo, and a default workspace with worktree.
+
+    Returns (root, bare_repo_path).
+    The worktree is at projects/test-project/workspaces/default/github/test-owner/test-repo.
+    """
+    # Create project directory with reporoot.yaml file
+    project_dir = workspace / "projects" / "test-project"
+    project_dir.mkdir(parents=True)
+
+    (project_dir / "reporoot.yaml").write_text(
+        "repositories:\n"
+        "  github/test-owner/test-repo:\n"
+        "    type: git\n"
+        "    url: https://github.com/test-owner/test-repo.git\n"
+        "    version: main\n"
+        "    role: primary\n"
+    )
+
+    # Create bare clone at github/test-owner/test-repo.git
+    bare = workspace / "github" / "test-owner" / "test-repo.git"
+    bare.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "clone", "--bare", str(git_repo), str(bare)],
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(bare), "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"],
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(bare), "fetch", "origin"],
+        capture_output=True,
+        check=True,
+    )
+
+    # Create default workspace with worktree
+    ws_dir = workspace / "projects" / "test-project" / "workspaces" / "default"
+    wt_dest = ws_dir / "github" / "test-owner" / "test-repo"
+    wt_dest.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(bare),
+            "worktree",
+            "add",
+            str(wt_dest),
+            "-b",
+            "default/main",
+            "--track",
+            "origin/main",
+        ],
+        capture_output=True,
+        check=True,
+    )
+
+    # Set active project
+    (workspace / ".reporoot-active").write_text("test-project\n")
+
+    return workspace, bare
+
+
 def make_repo_with_file(workspace: Path, repo_path: str, filename: str, content: str = "") -> Path:
     """Create a directory at repo_path with the given file."""
     repo_dir = workspace / repo_path
