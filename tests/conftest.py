@@ -29,6 +29,29 @@ def git_repo(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def bare_repo(git_repo: Path, tmp_path: Path) -> Path:
+    """Create a bare clone from git_repo with remote-tracking refs."""
+    bare = tmp_path / "test-repo.git"
+    subprocess.run(
+        ["git", "clone", "--bare", str(git_repo), str(bare)],
+        capture_output=True,
+        check=True,
+    )
+    # Reconfigure fetch refspec so origin/* tracking branches exist
+    subprocess.run(
+        ["git", "-C", str(bare), "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"],
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(bare), "fetch", "origin"],
+        capture_output=True,
+        check=True,
+    )
+    return bare
+
+
+@pytest.fixture
 def workspace(tmp_path: Path) -> Path:
     """Create a minimal reporoot with github/ and projects/ dirs."""
     ws = tmp_path / "workspace"
