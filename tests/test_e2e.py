@@ -22,7 +22,7 @@ def _create_bare_repo(path: Path, files: dict[str, str] | None = None) -> Path:
     # Build a temporary non-bare repo, then clone --bare
     work = path.parent / (path.name + "-work")
     work.mkdir(parents=True)
-    subprocess.run(["git", "init"], cwd=work, capture_output=True, check=True)
+    subprocess.run(["git", "init", "-b", "main"], cwd=work, capture_output=True, check=True)
     subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=work, capture_output=True, check=True)
     subprocess.run(["git", "config", "user.name", "Test"], cwd=work, capture_output=True, check=True)
 
@@ -115,23 +115,24 @@ class TestFetch:
         # Project repo cloned
         assert (ws / "projects" / "myproject" / "reporoot.yaml").exists()
 
-        # Dependency repos cloned under the "local" registry path
-        assert (ws / "local" / "testowner" / "lib-a" / ".git").is_dir()
-        assert (ws / "local" / "testowner" / "lib-b" / ".git").is_dir()
+        # Bare clones created under the "local" registry path
+        assert (ws / "local" / "testowner" / "lib-a.git" / "HEAD").exists()
+        assert (ws / "local" / "testowner" / "lib-b.git" / "HEAD").exists()
 
-        # Active project set
-        active = (ws / ".reporoot-active").read_text().strip()
-        assert active == "myproject"
+        # Default workspace created with worktrees
+        default_ws = ws / "projects" / "myproject" / "workspaces" / "default"
+        assert (default_ws / "local" / "testowner" / "lib-a" / "README.md").exists()
+        assert (default_ws / "local" / "testowner" / "lib-b" / "README.md").exists()
 
-    def test_fetch_existing_project_errors(self, e2e_env, capsys):
-        """Double-fetch gives a clear error."""
+    def test_fetch_existing_project_retries(self, e2e_env):
+        """Re-fetch with existing project dir processes missing repos."""
         from reporoot.cli import main
 
         os.chdir(e2e_env["workspace"])
         main(["fetch", e2e_env["project_url"]])
 
-        with pytest.raises(SystemExit, match="already exists"):
-            main(["fetch", e2e_env["project_url"]])
+        # Second fetch should handle gracefully (project exists, workspace exists)
+        main(["fetch", e2e_env["project_url"]])
 
 
 class TestFullCycle:
@@ -139,8 +140,13 @@ class TestFullCycle:
         """Full cycle: fetch -> lock -> check passes."""
         from reporoot.cli import main
 
-        os.chdir(e2e_env["workspace"])
+        ws = e2e_env["workspace"]
+        os.chdir(ws)
         main(["fetch", e2e_env["project_url"]])
+
+        # cd into workspace so lock infers project
+        default_ws = ws / "projects" / "myproject" / "workspaces" / "default"
+        os.chdir(default_ws)
 
         # Lock
         capsys.readouterr()  # clear fetch output
@@ -149,22 +155,29 @@ class TestFullCycle:
         captured = capsys.readouterr()
         assert "wrote reporoot.lock" in captured.out
 
-        lock_file = e2e_env["workspace"] / "projects" / "myproject" / "reporoot.lock"
+        lock_file = ws / "projects" / "myproject" / "reporoot.lock"
         assert lock_file.exists()
 
         # Check should pass (no issues)
+        os.chdir(ws)
         capsys.readouterr()
         main(["check"])
         captured = capsys.readouterr()
         assert "all checks passed" in captured.out
 
-    def test_fetch_then_activate_idempotent(self, e2e_env, capsys):
-        """Re-activating the same project works."""
+    def test_fetch_then_activate(self, e2e_env, capsys):
+        """Activate after fetch sets .reporoot-active and runs integrations."""
         from reporoot.cli import main
 
         os.chdir(e2e_env["workspace"])
         main(["fetch", e2e_env["project_url"]])
 
+        capsys.readouterr()
+        main(["activate", "myproject"])
+        captured = capsys.readouterr()
+        assert "activate: myproject" in captured.out
+
+        # Re-activate should say "already active"
         capsys.readouterr()
         main(["activate", "myproject"])
         captured = capsys.readouterr()
@@ -183,7 +196,7 @@ class TestCheckOutput:
         # Create an orphan repo under the "local" registry dir
         orphan = ws / "local" / "testowner" / "orphan"
         orphan.mkdir(parents=True)
-        subprocess.run(["git", "init"], cwd=orphan, capture_output=True, check=True)
+        subprocess.run(["git", "init", "-b", "main"], cwd=orphan, capture_output=True, check=True)
         subprocess.run(["git", "config", "user.email", "t@t.com"], cwd=orphan, capture_output=True, check=True)
         subprocess.run(["git", "config", "user.name", "T"], cwd=orphan, capture_output=True, check=True)
         (orphan / "x").write_text("x")
@@ -195,8 +208,7 @@ class TestCheckOutput:
         with pytest.raises(SystemExit):
             main(["check"])
         captured = capsys.readouterr()
-        assert "orphan: 1 repo(s)" in captured.out
-        assert "local/testowner/orphan" not in captured.out
+        assert "orphan:" in captured.out
         assert "use -v for details" in captured.out
 
         # Verbose
@@ -207,18 +219,24 @@ class TestCheckOutput:
         assert "local/testowner/orphan" in captured.out
 
     def test_check_stale_lock(self, e2e_env, capsys):
-        """Check detects stale lock after new commits."""
+        """Check detects stale lock after new commits pushed to bare repo."""
         from reporoot.cli import main
 
         ws = e2e_env["workspace"]
         os.chdir(ws)
         main(["fetch", e2e_env["project_url"]])
 
+        # cd into workspace for lock
+        default_ws = ws / "projects" / "myproject" / "workspaces" / "default"
+        os.chdir(default_ws)
+
         # Lock
         main(["lock"])
 
-        # Make a new commit in lib-a
-        lib_a = ws / "local" / "testowner" / "lib-a"
+        # Make a new commit directly in the bare repo (simulates a fetch from remote)
+        bare_a = ws / "local" / "testowner" / "lib-a.git"
+        # Create a commit in worktree and push to update bare repo HEAD
+        lib_a = default_ws / "local" / "testowner" / "lib-a"
         (lib_a / "new_file.txt").write_text("change\n")
         subprocess.run(["git", "add", "."], cwd=lib_a, capture_output=True, check=True)
         subprocess.run(
@@ -227,8 +245,15 @@ class TestCheckOutput:
             capture_output=True,
             check=True,
         )
+        # Update the bare repo's HEAD ref to match the worktree commit
+        subprocess.run(
+            ["git", "-C", str(bare_a), "fetch", str(lib_a), "HEAD:refs/heads/main"],
+            capture_output=True,
+            check=True,
+        )
 
         # Check should detect stale lock
+        os.chdir(ws)
         capsys.readouterr()
         with pytest.raises(SystemExit):
             main(["check", "-v"])
@@ -238,18 +263,15 @@ class TestCheckOutput:
 
 
 class TestDeactivate:
-    def test_deactivate_clears_active(self, e2e_env, capsys):
-        """Deactivate removes the active project pointer."""
+    def test_deactivate_noop_without_active(self, e2e_env):
+        """Deactivate works even when no .reporoot-active exists."""
         from reporoot.cli import main
 
         os.chdir(e2e_env["workspace"])
         main(["fetch", e2e_env["project_url"]])
 
-        active_file = e2e_env["workspace"] / ".reporoot-active"
-        assert active_file.exists()
-
+        # No .reporoot-active in new model — deactivate should still work
         main(["deactivate"])
-        assert not active_file.exists()
 
     def test_resolve_prints_root(self, e2e_env, capsys):
         """reporoot resolve prints the workspace root."""

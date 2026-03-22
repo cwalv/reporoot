@@ -199,7 +199,7 @@ class TestUvWorkspaceE2E:
 @pytest.mark.skipif(not has_gita, reason="gita not on PATH")
 class TestGitaE2E:
     def test_gita_repos_created(self, eco_workspace: Path):
-        """Activate → .gita/ directory with repos.csv and groups.csv."""
+        """Activate → gita/ directory with repos.csv and groups.csv."""
         ws = eco_workspace
         os.chdir(ws)
 
@@ -214,7 +214,7 @@ class TestGitaE2E:
         _setup_project(ws, "myproject", repos)
         _activate("myproject")
 
-        gita_dir = ws / ".gita"
+        gita_dir = ws / "gita"
         assert gita_dir.is_dir()
         assert (gita_dir / "repos.csv").exists()
         assert (gita_dir / "groups.csv").exists()

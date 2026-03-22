@@ -75,7 +75,9 @@ def _check_stale_lock(root: Path, project: str) -> list[str]:
     issues = []
     for repo_path, lock_info in lock_repos.items():
         lock_version = lock_info.get("version", "")
-        repo_dir = root / repo_path
+        # Try bare repo first, then regular clone
+        bare = bare_repo_path(root, repo_path)
+        repo_dir = bare if bare.is_dir() else root / repo_path
         if not repo_dir.is_dir():
             continue
         try:
@@ -120,9 +122,9 @@ def run(verbose: bool = False) -> None:
         for repo_path in project_repos:
             clone_exists = (root / repo_path).is_dir()
             bare_exists = bare_repo_path(root, repo_path).is_dir()
-            if not clone_exists:
+            if not clone_exists and not bare_exists:
                 dangling.append((project, repo_path))
-            if not bare_exists:
+            elif not bare_exists:
                 dangling_bare.append((project, repo_path))
 
         for repo_path in _check_missing_roles(repos_file):
