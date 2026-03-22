@@ -1,11 +1,29 @@
-"""reporoot utilities: finding the root, reading/writing reporoot.yaml, active project."""
+"""reporoot utilities: finding the root, reading/writing reporoot.yaml, workspace management."""
 
 from __future__ import annotations
 
+import shutil
+from dataclasses import dataclass
 from pathlib import Path
 
 REPOS_FILE = "reporoot.yaml"
 LOCK_FILE = "reporoot.lock"
+
+
+def _is_workspace_dir(p: Path) -> bool:
+    """Check if p is a workspace directory (inside projects/*/workspaces/).
+
+    Workspace dirs mirror the registry layout (e.g., contain github/) but
+    are not reporoot roots.  This prevents find_root from stopping early.
+    """
+    if p.parent.name != "workspaces":
+        return False
+    ancestor = p.parent.parent
+    while ancestor != ancestor.parent:
+        if ancestor.name == "projects":
+            return True
+        ancestor = ancestor.parent
+    return False
 
 
 def find_root(start: Path | None = None) -> Path:
@@ -13,6 +31,9 @@ def find_root(start: Path | None = None) -> Path:
 
     A reporoot is identified by having a projects/ directory, an .reporoot-active
     file, or any known registry directory (github/, gitlab/, etc.).
+
+    Skips workspace directories that mirror the registry layout to avoid
+    false matches inside projects/{name}/workspaces/{ws}/.
     """
     from reporoot.config import registry_names
 
@@ -21,9 +42,10 @@ def find_root(start: Path | None = None) -> Path:
     while True:
         if (p / "projects").is_dir() or (p / ".reporoot-active").exists():
             return p
-        for name in names:
-            if (p / name).is_dir():
-                return p
+        if not _is_workspace_dir(p):
+            for name in names:
+                if (p / name).is_dir():
+                    return p
         if p.parent == p:
             raise SystemExit("fatal: not inside a reporoot (no registry dir, projects/, or .reporoot-active found)")
         p = p.parent
@@ -97,6 +119,63 @@ def active_lock_file(root: Path) -> Path:
     return project_lock_file(root, name)
 
 
+# --- Workspace context ---
+
+
+@dataclass
+class WorkspaceContext:
+    """Result of inferring context from the current working directory."""
+
+    root: Path
+    project: str | None
+    workspace: str | None
+
+
+def infer_context(cwd: Path | None = None) -> WorkspaceContext:
+    """Infer root, project, and workspace from the current working directory.
+
+    Resolution order:
+    1. If CWD is under projects/{project}/workspaces/{name}/, extract both.
+    2. If CWD is under projects/{project}/, extract the project.
+    3. Fall back to .reporoot-active for the project.
+    """
+    root = find_root(cwd)
+    resolved = (cwd or Path.cwd()).resolve()
+
+    projects_dir = root / "projects"
+    try:
+        rel = resolved.relative_to(projects_dir)
+    except ValueError:
+        return WorkspaceContext(root=root, project=active_project(root), workspace=None)
+
+    parts = rel.parts
+    if not parts:
+        return WorkspaceContext(root=root, project=None, workspace=None)
+
+    # Look for "workspaces" in path segments
+    if "workspaces" in parts:
+        ws_idx = parts.index("workspaces")
+        project = str(Path(*parts[:ws_idx])) if ws_idx > 0 else None
+        workspace = parts[ws_idx + 1] if ws_idx + 1 < len(parts) else None
+        return WorkspaceContext(root=root, project=project, workspace=workspace)
+
+    # Under projects/ but not in a workspace — find project by reporoot.yaml
+    p = resolved
+    while p != projects_dir:
+        if (p / REPOS_FILE).exists():
+            project = str(p.relative_to(projects_dir))
+            return WorkspaceContext(root=root, project=project, workspace=None)
+        if p.parent == p:
+            break
+        p = p.parent
+
+    # Best guess: first path segment as project name
+    return WorkspaceContext(root=root, project=parts[0], workspace=None)
+
+
+# --- Project / workspace paths ---
+
+
 def project_repos_file(root: Path, project: str) -> Path:
     """Return the reporoot.yaml path for a named project."""
     return root / "projects" / project / REPOS_FILE
@@ -105,6 +184,123 @@ def project_repos_file(root: Path, project: str) -> Path:
 def project_lock_file(root: Path, project: str) -> Path:
     """Return the reporoot.lock path for a named project."""
     return root / "projects" / project / LOCK_FILE
+
+
+def workspace_dir(root: Path, project: str, name: str = "default") -> Path:
+    """Return the workspace directory path."""
+    return root / "projects" / project / "workspaces" / name
+
+
+def bare_repo_path(root: Path, repo_path: str) -> Path:
+    """Convert a logical repo path to its bare repo location.
+
+    e.g., 'github/owner/repo' -> root/github/owner/repo.git
+    """
+    p = Path(repo_path)
+    return root / p.parent / f"{p.name}.git"
+
+
+def list_workspaces(root: Path, project: str) -> list[str]:
+    """List workspace names for a project."""
+    ws_parent = root / "projects" / project / "workspaces"
+    if not ws_parent.is_dir():
+        return []
+    return sorted(d.name for d in ws_parent.iterdir() if d.is_dir())
+
+
+# --- Workspace lifecycle ---
+
+
+def create_workspace(root: Path, project: str, name: str = "default") -> Path:
+    """Create a workspace with worktrees for all project repos.
+
+    Creates the workspace directory and git worktrees from bare repos for
+    each repo in the project manifest.  Per-workspace branch naming:
+    {name}/{version} tracking origin/{version}.
+
+    Returns the workspace directory path.
+    """
+    from reporoot.git import worktree_add
+
+    ws = workspace_dir(root, project, name)
+    if ws.exists():
+        raise SystemExit(f"fatal: workspace '{name}' already exists for project '{project}'")
+
+    repos_file = project_repos_file(root, project)
+    if not repos_file.exists():
+        raise SystemExit(f"fatal: no {REPOS_FILE} found in projects/{project}/")
+
+    repos = read_repos(repos_file)
+    ws.mkdir(parents=True)
+
+    for repo_path, repo_info in repos.items():
+        bare = bare_repo_path(root, repo_path)
+        if not bare.exists():
+            raise SystemExit(f"fatal: bare repo not found: {bare}\nhint: run 'reporoot fetch' to create bare clones")
+
+        wt_dest = ws / repo_path
+        wt_dest.parent.mkdir(parents=True, exist_ok=True)
+
+        version = repo_info.get("version", "main")
+        branch = f"{name}/{version}"
+        track = f"origin/{version}"
+        worktree_add(bare, wt_dest, branch, track=track)
+        print(f"  worktree: {repo_path} ({branch} -> {track})")
+
+    return ws
+
+
+def delete_workspace(root: Path, project: str, name: str) -> None:
+    """Delete a workspace: remove worktrees, then remove the directory."""
+    from reporoot.git import worktree_remove
+
+    ws = workspace_dir(root, project, name)
+    if not ws.exists():
+        raise SystemExit(f"fatal: workspace '{name}' not found for project '{project}'")
+
+    repos = read_repos(project_repos_file(root, project))
+    for repo_path in repos:
+        wt_path = ws / repo_path
+        if wt_path.exists():
+            bare = bare_repo_path(root, repo_path)
+            worktree_remove(bare, wt_path, force=True)
+            print(f"  removed worktree: {repo_path}")
+
+    shutil.rmtree(ws)
+    print(f"  deleted workspace: {name}")
+
+
+def sync_workspace(root: Path, project: str, name: str) -> None:
+    """Reconcile workspace worktrees with the project manifest.
+
+    Adds worktrees for repos in the manifest that are missing from the workspace.
+    """
+    from reporoot.git import worktree_add
+
+    ws = workspace_dir(root, project, name)
+    if not ws.exists():
+        raise SystemExit(f"fatal: workspace '{name}' not found for project '{project}'")
+
+    repos = read_repos(project_repos_file(root, project))
+
+    added = 0
+    for repo_path, repo_info in repos.items():
+        wt_dest = ws / repo_path
+        if not wt_dest.exists():
+            bare = bare_repo_path(root, repo_path)
+            if not bare.exists():
+                print(f"  warning: bare repo not found: {bare}")
+                continue
+            version = repo_info.get("version", "main")
+            branch = f"{name}/{version}"
+            track = f"origin/{version}"
+            wt_dest.parent.mkdir(parents=True, exist_ok=True)
+            worktree_add(bare, wt_dest, branch, track=track)
+            print(f"  added: {repo_path}")
+            added += 1
+
+    if added == 0:
+        print("  workspace in sync")
 
 
 def all_project_repos_files(root: Path) -> list[tuple[str, Path]]:

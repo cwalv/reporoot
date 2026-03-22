@@ -1,4 +1,4 @@
-"""Tests for rr.workspace — root finding, URL parsing, reporoot.yaml I/O, active project."""
+"""Tests for rr.workspace — root finding, URL parsing, reporoot.yaml I/O, workspace management."""
 
 from __future__ import annotations
 
@@ -7,17 +7,25 @@ from pathlib import Path
 import pytest
 
 from reporoot.workspace import (
+    _is_workspace_dir,
     active_project,
     all_known_repos,
     all_project_repos_files,
     append_entry,
+    bare_repo_path,
+    create_workspace,
+    delete_workspace,
     find_root,
+    infer_context,
+    list_workspaces,
     normalize_github_url,
     parse_github_url,
     project_lock_file,
     project_repos_file,
     read_repos,
     require_active_project,
+    sync_workspace,
+    workspace_dir,
 )
 
 
@@ -272,3 +280,303 @@ class TestAppendEntry:
         # role should be a YAML field, not a comment
         repos = read_repos(f)
         assert repos["github/a/b"]["role"] == "primary"
+
+
+# --- Workspace management tests ---
+
+
+class TestIsWorkspaceDir:
+    def test_workspace_dir(self, tmp_path: Path):
+        ws = tmp_path / "projects" / "myproject" / "workspaces" / "default"
+        ws.mkdir(parents=True)
+        assert _is_workspace_dir(ws)
+
+    def test_not_workspace_plain_dir(self, tmp_path: Path):
+        d = tmp_path / "github" / "owner"
+        d.mkdir(parents=True)
+        assert not _is_workspace_dir(d)
+
+    def test_not_workspace_workspaces_without_projects(self, tmp_path: Path):
+        d = tmp_path / "workspaces" / "default"
+        d.mkdir(parents=True)
+        assert not _is_workspace_dir(d)
+
+    def test_nested_project_workspace(self, tmp_path: Path):
+        ws = tmp_path / "projects" / "chatly" / "web-app" / "workspaces" / "agent-1"
+        ws.mkdir(parents=True)
+        assert _is_workspace_dir(ws)
+
+
+class TestFindRootWorkspace:
+    def test_skips_workspace_github_dir(self, tmp_path: Path):
+        """find_root should not match a workspace's github/ dir as root."""
+        root = tmp_path / "root"
+        (root / "projects" / "myproject" / "workspaces" / "default" / "github" / "owner" / "repo").mkdir(parents=True)
+        # The real root has projects/
+        deep = root / "projects" / "myproject" / "workspaces" / "default" / "github" / "owner" / "repo"
+        assert find_root(deep) == root
+
+    def test_still_finds_root_with_github(self, tmp_path: Path):
+        """Standalone github/ dir still works as root marker."""
+        (tmp_path / "github").mkdir()
+        assert find_root(tmp_path) == tmp_path
+
+
+class TestWorkspacePaths:
+    def test_workspace_dir(self, workspace: Path):
+        result = workspace_dir(workspace, "myproject", "default")
+        assert result == workspace / "projects" / "myproject" / "workspaces" / "default"
+
+    def test_workspace_dir_default_name(self, workspace: Path):
+        result = workspace_dir(workspace, "myproject")
+        assert result == workspace / "projects" / "myproject" / "workspaces" / "default"
+
+    def test_bare_repo_path(self, workspace: Path):
+        result = bare_repo_path(workspace, "github/owner/repo")
+        assert result == workspace / "github" / "owner" / "repo.git"
+
+    def test_bare_repo_path_deep(self, workspace: Path):
+        result = bare_repo_path(workspace, "gitlab/org/sub/repo")
+        assert result == workspace / "gitlab" / "org" / "sub" / "repo.git"
+
+
+class TestListWorkspaces:
+    def test_no_workspaces_dir(self, workspace: Path):
+        (workspace / "projects" / "myproject").mkdir(parents=True)
+        assert list_workspaces(workspace, "myproject") == []
+
+    def test_lists_workspace_dirs(self, workspace: Path):
+        ws_parent = workspace / "projects" / "myproject" / "workspaces"
+        (ws_parent / "default").mkdir(parents=True)
+        (ws_parent / "agent-1").mkdir(parents=True)
+        assert list_workspaces(workspace, "myproject") == ["agent-1", "default"]
+
+    def test_ignores_files(self, workspace: Path):
+        ws_parent = workspace / "projects" / "myproject" / "workspaces"
+        ws_parent.mkdir(parents=True)
+        (ws_parent / ".gitkeep").write_text("")
+        (ws_parent / "default").mkdir()
+        assert list_workspaces(workspace, "myproject") == ["default"]
+
+
+class TestInferContext:
+    def test_from_workspace(self, workspace: Path):
+        ws = workspace / "projects" / "myproject" / "workspaces" / "default"
+        ws.mkdir(parents=True)
+        (workspace / "projects" / "myproject" / "reporoot.yaml").write_text("repositories:\n")
+        ctx = infer_context(ws)
+        assert ctx.root == workspace
+        assert ctx.project == "myproject"
+        assert ctx.workspace == "default"
+
+    def test_from_deep_in_workspace(self, workspace: Path):
+        repo = workspace / "projects" / "myproject" / "workspaces" / "default" / "github" / "owner" / "repo"
+        repo.mkdir(parents=True)
+        (workspace / "projects" / "myproject" / "reporoot.yaml").write_text("repositories:\n")
+        ctx = infer_context(repo)
+        assert ctx.root == workspace
+        assert ctx.project == "myproject"
+        assert ctx.workspace == "default"
+
+    def test_from_project_dir(self, workspace: Path):
+        project_dir = workspace / "projects" / "myproject"
+        project_dir.mkdir(parents=True)
+        (project_dir / "reporoot.yaml").write_text("repositories:\n")
+        ctx = infer_context(project_dir)
+        assert ctx.root == workspace
+        assert ctx.project == "myproject"
+        assert ctx.workspace is None
+
+    def test_from_project_subdir(self, workspace: Path):
+        docs = workspace / "projects" / "myproject" / "docs"
+        docs.mkdir(parents=True)
+        (workspace / "projects" / "myproject" / "reporoot.yaml").write_text("repositories:\n")
+        ctx = infer_context(docs)
+        assert ctx.project == "myproject"
+        assert ctx.workspace is None
+
+    def test_from_outside_projects(self, workspace: Path):
+        repo = workspace / "github" / "owner" / "repo"
+        repo.mkdir(parents=True)
+        ctx = infer_context(repo)
+        assert ctx.root == workspace
+        assert ctx.project is None
+        assert ctx.workspace is None
+
+    def test_from_outside_with_active_project(self, workspace: Path):
+        (workspace / "projects" / "myproject").mkdir(parents=True)
+        (workspace / ".reporoot-active").write_text("myproject\n")
+        repo = workspace / "github" / "owner" / "repo"
+        repo.mkdir(parents=True)
+        ctx = infer_context(repo)
+        assert ctx.project == "myproject"
+        assert ctx.workspace is None
+
+    def test_multi_segment_project(self, workspace: Path):
+        ws = workspace / "projects" / "chatly" / "web-app" / "workspaces" / "agent-1"
+        ws.mkdir(parents=True)
+        ctx = infer_context(ws)
+        assert ctx.project == "chatly/web-app"
+        assert ctx.workspace == "agent-1"
+
+    def test_projects_dir_itself(self, workspace: Path):
+        ctx = infer_context(workspace / "projects")
+        assert ctx.project is None
+        assert ctx.workspace is None
+
+
+class TestCreateWorkspace:
+    def test_creates_worktrees(self, workspace: Path, bare_repo: Path):
+        # Set up project with bare repo
+        project_dir = workspace / "projects" / "test-project"
+        project_dir.mkdir(parents=True)
+
+        # Move bare repo into workspace store
+        store = workspace / "github" / "test-owner" / "test-repo.git"
+        store.parent.mkdir(parents=True)
+        bare_repo.rename(store)
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+        )
+
+        ws = create_workspace(workspace, "test-project", "default")
+        assert ws.exists()
+        assert (ws / "github" / "test-owner" / "test-repo" / "README.md").exists()
+        # .git is a file in worktrees
+        assert (ws / "github" / "test-owner" / "test-repo" / ".git").is_file()
+
+    def test_already_exists(self, workspace: Path):
+        project_dir = workspace / "projects" / "test-project"
+        project_dir.mkdir(parents=True)
+        (project_dir / "reporoot.yaml").write_text("repositories:\n")
+        ws = workspace / "projects" / "test-project" / "workspaces" / "default"
+        ws.mkdir(parents=True)
+        with pytest.raises(SystemExit, match="already exists"):
+            create_workspace(workspace, "test-project", "default")
+
+    def test_no_manifest(self, workspace: Path):
+        with pytest.raises(SystemExit, match="no reporoot.yaml"):
+            create_workspace(workspace, "nonexistent", "default")
+
+    def test_missing_bare_repo(self, workspace: Path):
+        project_dir = workspace / "projects" / "test-project"
+        project_dir.mkdir(parents=True)
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/owner/missing:\n"
+            "    type: git\n"
+            "    url: https://github.com/owner/missing.git\n"
+            "    version: main\n"
+        )
+        with pytest.raises(SystemExit, match="bare repo not found"):
+            create_workspace(workspace, "test-project", "default")
+
+
+class TestDeleteWorkspace:
+    def test_deletes_worktrees_and_dir(self, workspace: Path, bare_repo: Path):
+        # Set up workspace with a worktree
+        project_dir = workspace / "projects" / "test-project"
+        project_dir.mkdir(parents=True)
+
+        store = workspace / "github" / "test-owner" / "test-repo.git"
+        store.parent.mkdir(parents=True)
+        bare_repo.rename(store)
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+        )
+
+        ws = create_workspace(workspace, "test-project", "to-delete")
+        assert ws.exists()
+
+        delete_workspace(workspace, "test-project", "to-delete")
+        assert not ws.exists()
+
+    def test_not_found(self, workspace: Path):
+        (workspace / "projects" / "test-project").mkdir(parents=True)
+        with pytest.raises(SystemExit, match="not found"):
+            delete_workspace(workspace, "test-project", "nonexistent")
+
+
+class TestSyncWorkspace:
+    def test_adds_missing_worktree(self, workspace: Path, bare_repo: Path, git_repo: Path):
+        # Set up with one repo
+        project_dir = workspace / "projects" / "test-project"
+        project_dir.mkdir(parents=True)
+
+        store = workspace / "github" / "test-owner" / "test-repo.git"
+        store.parent.mkdir(parents=True)
+        bare_repo.rename(store)
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+        )
+
+        ws = create_workspace(workspace, "test-project", "sync-test")
+
+        # Add a second repo to manifest after workspace creation
+        import subprocess
+
+        second_bare = workspace / "github" / "test-owner" / "second.git"
+        second_bare.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "clone", "--bare", str(git_repo), str(second_bare)], capture_output=True, check=True)
+        subprocess.run(
+            ["git", "-C", str(second_bare), "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"],
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(["git", "-C", str(second_bare), "fetch", "origin"], capture_output=True, check=True)
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+            "  github/test-owner/second:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/second.git\n"
+            "    version: main\n"
+        )
+
+        sync_workspace(workspace, "test-project", "sync-test")
+        assert (ws / "github" / "test-owner" / "second" / "README.md").exists()
+
+    def test_already_in_sync(self, workspace: Path, bare_repo: Path, capsys):
+        project_dir = workspace / "projects" / "test-project"
+        project_dir.mkdir(parents=True)
+
+        store = workspace / "github" / "test-owner" / "test-repo.git"
+        store.parent.mkdir(parents=True)
+        bare_repo.rename(store)
+
+        (project_dir / "reporoot.yaml").write_text(
+            "repositories:\n"
+            "  github/test-owner/test-repo:\n"
+            "    type: git\n"
+            "    url: https://github.com/test-owner/test-repo.git\n"
+            "    version: main\n"
+        )
+
+        create_workspace(workspace, "test-project", "sync-test")
+        sync_workspace(workspace, "test-project", "sync-test")
+        captured = capsys.readouterr()
+        assert "in sync" in captured.out
+
+    def test_not_found(self, workspace: Path):
+        (workspace / "projects" / "test-project").mkdir(parents=True)
+        with pytest.raises(SystemExit, match="not found"):
+            sync_workspace(workspace, "test-project", "nonexistent")
