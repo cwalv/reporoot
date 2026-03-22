@@ -64,13 +64,34 @@ class VscodeWorkspace:
 
     def activate(self, ctx: IntegrationContext) -> None:
         filename = _workspace_filename(ctx.project)
+
+        if ctx.is_workspace_root:
+            # Workspace dir: only project repos exist, no need for
+            # symlink indirection or files.exclude filtering.
+            target = ctx.root / filename
+
+            folders: list[dict[str, str]] = [
+                {"path": ".", "name": ctx.project},
+            ]
+
+            workspace: dict[str, Any]
+            if target.exists() and not target.is_symlink():
+                workspace = json.loads(target.read_text())
+            else:
+                workspace = {}
+            workspace["folders"] = folders
+
+            target.write_text(json.dumps(workspace, indent=2) + "\n")
+            print(f"  wrote {filename}")
+            return
+
         gen_dir = ctx.root / "projects" / ctx.project / _GEN_DIR
         gen_dir.mkdir(parents=True, exist_ok=True)
         canonical = gen_dir / filename
 
         # Single root folder — VS Code resolves relative paths from the
         # symlink location (workspace root), not the real file location.
-        folders: list[dict[str, str]] = [
+        folders = [
             {"path": ".", "name": ctx.project},
         ]
 
@@ -89,20 +110,20 @@ class VscodeWorkspace:
         # Merge: preserve existing keys (extensions, launch, tasks, etc.).
         # Replace folders and settings.files.exclude (managed keys).
         # Preserve all other settings keys.
-        workspace: dict[str, Any]
+        ws_data: dict[str, Any]
         if canonical.exists():
-            workspace = json.loads(canonical.read_text())
+            ws_data = json.loads(canonical.read_text())
         else:
-            workspace = {}
-        workspace["folders"] = folders
+            ws_data = {}
+        ws_data["folders"] = folders
 
-        settings = workspace.get("settings", {})
+        settings = ws_data.get("settings", {})
         if not isinstance(settings, dict):
             settings = {}
         settings["files.exclude"] = excludes
-        workspace["settings"] = settings
+        ws_data["settings"] = settings
 
-        canonical.write_text(json.dumps(workspace, indent=2) + "\n")
+        canonical.write_text(json.dumps(ws_data, indent=2) + "\n")
 
         # Symlink at root — remove any existing file/symlink (possibly
         # with a different name from a previous project).
@@ -121,6 +142,18 @@ class VscodeWorkspace:
     def check(self, ctx: IntegrationContext) -> list[Issue]:
         issues: list[Issue] = []
         filename = _workspace_filename(ctx.project)
+
+        if ctx.is_workspace_root:
+            target = ctx.root / filename
+            if not target.is_file():
+                issues.append(
+                    Issue(
+                        integration=self.name,
+                        message=f"{filename} missing in workspace dir",
+                    )
+                )
+            return issues
+
         link = ctx.root / filename
         expected = Path("projects") / ctx.project / _GEN_DIR / filename
         if not link.is_symlink():

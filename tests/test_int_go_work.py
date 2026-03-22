@@ -58,5 +58,20 @@ class TestGoWorkActivate:
         GoWork().deactivate(workspace)
         assert not (workspace / "go.work").exists()
 
+    def test_excludes_reference_repos(self, workspace: Path):
+        make_repo_with_file(workspace, "github/a/svc", "go.mod", "module github.com/a/svc")
+        make_repo_with_file(workspace, "github/a/ref", "go.mod", "module github.com/a/ref")
+
+        repos = {
+            "github/a/svc": {"type": "git", "url": "u", "version": "main", "role": "primary"},
+            "github/a/ref": {"type": "git", "url": "u", "version": "main", "role": "reference"},
+        }
+
+        GoWork().activate(_ctx(workspace, repos))
+
+        go_work = (workspace / "go.work").read_text()
+        assert "./github/a/svc" in go_work
+        assert "ref" not in go_work
+
     def test_deactivate_noop_if_missing(self, workspace: Path):
         GoWork().deactivate(workspace)  # should not raise

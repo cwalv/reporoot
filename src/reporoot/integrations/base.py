@@ -31,6 +31,15 @@ class IntegrationContext:
     """All project paths (e.g., ['web-app', 'mobile-app']).
     Populated once by the registry, shared across integrations."""
 
+    @property
+    def is_workspace_root(self) -> bool:
+        """True when root is a workspace dir (e.g., projects/myproject/workspaces/default/)."""
+        return "workspaces" in self.root.parts
+
+    def active_repos(self) -> dict[str, dict]:
+        """Return repos excluding reference repos (not suitable for ecosystem workspaces)."""
+        return {k: v for k, v in self.repos.items() if v.get("role") != "reference"}
+
 
 @dataclass
 class Issue:

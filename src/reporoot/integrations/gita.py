@@ -7,7 +7,7 @@ from pathlib import Path
 
 from reporoot.integrations.base import IntegrationContext, Issue
 
-_DIR = ".gita"
+_DIR = "gita"
 
 
 class Gita:

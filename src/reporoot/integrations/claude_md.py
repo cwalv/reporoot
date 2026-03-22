@@ -16,14 +16,24 @@ def _generate_content(ctx: IntegrationContext) -> str:
 
     lines = [_HEADER, ""]
 
+    is_ws = ctx.is_workspace_root
+
     # Overview
-    lines.append(
-        "This is a [reporoot](https://cwalv.github.io/reporoot/) workspace — "
-        "multiple repos under one directory tree, wired into ecosystem workspaces "
-        "(npm, Go, uv, etc.) so cross-repo imports resolve locally. "
-        "Each repo is a normal git clone; the project file declares which repos "
-        "belong together."
-    )
+    if is_ws:
+        lines.append(
+            "This is a [reporoot](https://cwalv.github.io/reporoot/) workspace directory — "
+            "an isolated working copy containing only the repos for the active project. "
+            "Ecosystem workspaces (npm, Go, uv, etc.) are wired so cross-repo imports "
+            "resolve locally."
+        )
+    else:
+        lines.append(
+            "This is a [reporoot](https://cwalv.github.io/reporoot/) workspace — "
+            "multiple repos under one directory tree, wired into ecosystem workspaces "
+            "(npm, Go, uv, etc.) so cross-repo imports resolve locally. "
+            "Each repo is a normal git clone; the project file declares which repos "
+            "belong together."
+        )
     lines.append("")
 
     # Active project

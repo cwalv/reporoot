@@ -17,8 +17,9 @@ class NpmWorkspaces:
     default_enabled = True
 
     def activate(self, ctx: IntegrationContext) -> None:
+        active = ctx.active_repos()
         node_paths: list[str] = []
-        for repo_path in sorted(ctx.repos):
+        for repo_path in sorted(active):
             repo_dir = ctx.root / repo_path
             if repo_dir.is_dir() and (repo_dir / "package.json").exists():
                 node_paths.append(repo_path)

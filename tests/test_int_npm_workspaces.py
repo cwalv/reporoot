@@ -57,5 +57,19 @@ class TestNpmWorkspacesActivate:
         NpmWorkspaces().deactivate(workspace)
         assert not (workspace / "package.json").exists()
 
+    def test_excludes_reference_repos(self, workspace: Path):
+        make_repo_with_file(workspace, "github/a/web", "package.json", '{"name": "@a/web"}')
+        make_repo_with_file(workspace, "github/a/ref", "package.json", '{"name": "@a/ref"}')
+
+        repos = {
+            "github/a/web": {"type": "git", "url": "u", "version": "main", "role": "primary"},
+            "github/a/ref": {"type": "git", "url": "u", "version": "main", "role": "reference"},
+        }
+
+        NpmWorkspaces().activate(_ctx(workspace, repos))
+
+        pkg = json.loads((workspace / "package.json").read_text())
+        assert pkg["workspaces"] == ["github/a/web"]
+
     def test_deactivate_noop_if_missing(self, workspace: Path):
         NpmWorkspaces().deactivate(workspace)  # should not raise

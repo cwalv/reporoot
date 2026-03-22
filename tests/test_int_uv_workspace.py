@@ -74,5 +74,30 @@ class TestUvWorkspaceActivate:
         UvWorkspace().deactivate(workspace)
         assert not (workspace / "pyproject.toml").exists()
 
+    def test_excludes_reference_repos(self, workspace: Path):
+        make_repo_with_file(
+            workspace,
+            "github/a/svc",
+            "pyproject.toml",
+            '[project]\nname = "svc"\nversion = "0.1.0"\n',
+        )
+        make_repo_with_file(
+            workspace,
+            "github/a/ref",
+            "pyproject.toml",
+            '[project]\nname = "ref"\nversion = "0.1.0"\n',
+        )
+
+        repos = {
+            "github/a/svc": {"type": "git", "url": "u", "version": "main", "role": "primary"},
+            "github/a/ref": {"type": "git", "url": "u", "version": "main", "role": "reference"},
+        }
+
+        UvWorkspace().activate(_ctx(workspace, repos))
+
+        pyproject = (workspace / "pyproject.toml").read_text()
+        assert '"github/a/svc"' in pyproject
+        assert "ref" not in pyproject
+
     def test_deactivate_noop_if_missing(self, workspace: Path):
         UvWorkspace().deactivate(workspace)  # should not raise

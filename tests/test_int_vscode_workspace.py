@@ -242,6 +242,61 @@ class TestVscodeWorkspaceDeactivate:
         assert (workspace / _filename()).exists()
 
 
+class TestVscodeWorkspaceInWorkspaceDir:
+    """Tests for workspace-dir mode (root is under a workspaces/ directory)."""
+
+    def _ws_root(self, tmp_path: Path) -> Path:
+        """Create a root that looks like a workspace dir."""
+        ws = tmp_path / "projects" / "myproj" / "workspaces" / "default"
+        ws.mkdir(parents=True)
+        (ws / "github").mkdir()
+        return ws
+
+    def test_writes_file_directly_no_symlink(self, tmp_path: Path):
+        ws = self._ws_root(tmp_path)
+        repos = {"github/a/web": {"type": "git", "url": "u", "version": "main"}}
+        (ws / "github" / "a" / "web").mkdir(parents=True)
+        ctx = _ctx(ws, repos, project="myproj")
+
+        VscodeWorkspace().activate(ctx)
+
+        target = ws / "myproj.code-workspace"
+        assert target.is_file()
+        assert not target.is_symlink()
+        data = json.loads(target.read_text())
+        assert data["folders"][0]["path"] == "."
+        assert "settings" not in data  # no files.exclude in workspace mode
+
+    def test_no_gen_dir_created(self, tmp_path: Path):
+        ws = self._ws_root(tmp_path)
+        repos = {"github/a/web": {"type": "git", "url": "u", "version": "main"}}
+        (ws / "github" / "a" / "web").mkdir(parents=True)
+        ctx = _ctx(ws, repos, project="myproj")
+
+        VscodeWorkspace().activate(ctx)
+
+        assert not (ws / "projects").exists()
+
+    def test_check_passes_in_workspace_dir(self, tmp_path: Path):
+        ws = self._ws_root(tmp_path)
+        repos = {"github/a/web": {"type": "git", "url": "u", "version": "main"}}
+        (ws / "github" / "a" / "web").mkdir(parents=True)
+        ctx = _ctx(ws, repos, project="myproj")
+
+        VscodeWorkspace().activate(ctx)
+        issues = VscodeWorkspace().check(ctx)
+        assert issues == []
+
+    def test_check_warns_missing_in_workspace_dir(self, tmp_path: Path):
+        ws = self._ws_root(tmp_path)
+        repos = {"github/a/web": {"type": "git", "url": "u", "version": "main"}}
+        ctx = _ctx(ws, repos, project="myproj")
+
+        issues = VscodeWorkspace().check(ctx)
+        assert len(issues) == 1
+        assert "missing" in issues[0].message
+
+
 class TestVscodeWorkspaceCheck:
     def test_check_passes_when_correct(self, workspace: Path):
         repos = _two_repos(workspace)

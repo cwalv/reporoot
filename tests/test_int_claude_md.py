@@ -68,6 +68,24 @@ class TestClaudeMdActivate:
         content = (workspace / "CLAUDE.md").read_text()
         assert "projects/web-app/" in content
 
+    def test_workspace_dir_context(self, tmp_path: Path):
+        """When root is a workspace dir, the overview mentions it."""
+        ws = tmp_path / "projects" / "myproj" / "workspaces" / "default"
+        ws.mkdir(parents=True)
+        ClaudeMd().activate(_ctx(ws, {}, project="myproj"))
+
+        content = (ws / "CLAUDE.md").read_text()
+        assert "workspace directory" in content
+        assert "isolated working copy" in content
+
+    def test_store_root_context(self, workspace: Path):
+        """When root is a normal store root, the overview uses standard text."""
+        ClaudeMd().activate(_ctx(workspace, {}, project="test"))
+
+        content = (workspace / "CLAUDE.md").read_text()
+        assert "workspace directory" not in content
+        assert "multiple repos under one directory tree" in content
+
 
 class TestClaudeMdDeactivate:
     def test_removes_generated_file(self, workspace: Path):

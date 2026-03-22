@@ -40,7 +40,7 @@ class TestGitaActivate:
 
         Gita().activate(_ctx(workspace, repos))
 
-        repos_csv = (workspace / ".gita" / "repos.csv").read_text()
+        repos_csv = (workspace / "gita" / "repos.csv").read_text()
         reader = csv.reader(io.StringIO(repos_csv))
         rows = list(reader)
         # header + 2 repos
@@ -68,12 +68,12 @@ class TestGitaActivate:
 
         Gita().activate(_ctx(workspace, repos))
 
-        groups_csv = (workspace / ".gita" / "groups.csv").read_text()
+        groups_csv = (workspace / "gita" / "groups.csv").read_text()
         assert "primary" in groups_csv
         assert "dependency" in groups_csv
 
     def test_deactivate_removes_directory(self, workspace: Path):
-        gita_dir = workspace / ".gita"
+        gita_dir = workspace / "gita"
         gita_dir.mkdir()
         (gita_dir / "repos.csv").write_text("")
         (gita_dir / "groups.csv").write_text("")

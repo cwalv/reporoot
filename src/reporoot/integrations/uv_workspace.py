@@ -16,8 +16,9 @@ class UvWorkspace:
     default_enabled = True
 
     def activate(self, ctx: IntegrationContext) -> None:
+        active = ctx.active_repos()
         py_paths: list[str] = []
-        for repo_path in sorted(ctx.repos):
+        for repo_path in sorted(active):
             repo_dir = ctx.root / repo_path
             if repo_dir.is_dir() and (repo_dir / "pyproject.toml").exists():
                 py_paths.append(repo_path)
