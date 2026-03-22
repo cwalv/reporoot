@@ -33,7 +33,7 @@ class GoWork:
     def deactivate(self, root: Path) -> None:
         self._remove(root / _FILE)
 
-    def check(self, ctx: IntegrationContext) -> list[Issue]:
+    def check(self, ctx: IntegrationContext) -> list[Issue]:  # noqa: ARG002
         return []
 
     def _remove(self, path: Path) -> None:

@@ -140,7 +140,7 @@ class TestActivate:
         # Sorted order: aaa_remove_me, zzz_keep_me.txt
         # Say "y" to first, "n" to second
         responses = iter([True, False])
-        with patch("reporoot.activate._confirm", side_effect=lambda prompt: next(responses)):
+        with patch("reporoot.activate._confirm", side_effect=lambda _prompt: next(responses)):
             with patch("sys.stdin") as mock_stdin:
                 mock_stdin.isatty.return_value = True
                 deactivate(hard=True, force=False)

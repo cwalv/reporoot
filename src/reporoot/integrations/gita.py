@@ -53,7 +53,7 @@ class Gita:
             shutil.rmtree(gita_dir)
             print(f"  removed {_DIR}/")
 
-    def check(self, ctx: IntegrationContext) -> list[Issue]:
+    def check(self, ctx: IntegrationContext) -> list[Issue]:  # noqa: ARG002
         issues: list[Issue] = []
         if not shutil.which("gita"):
             issues.append(
