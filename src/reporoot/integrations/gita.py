@@ -1,4 +1,4 @@
-"""gita integration — generate .gita/ config for multi-repo git operations."""
+"""gita integration — generate gita/ config for multi-repo git operations."""
 
 from __future__ import annotations
 
@@ -18,8 +18,8 @@ class Gita:
         gita_dir = ctx.root / _DIR
         gita_dir.mkdir(exist_ok=True)
 
-        # repos.csv: path,name,flags (gita format)
-        repos_lines = ["path,name,flags"]
+        # repos.csv: path,name,type,flags (no header — gita uses positional DictReader)
+        repos_lines: list[str] = []
         # groups by role
         groups: dict[str, list[str]] = {}
 
@@ -29,7 +29,7 @@ class Gita:
                 continue
             # Use the repo basename as the gita name
             name = Path(repo_path).name
-            repos_lines.append(f"{repo_dir},{name},")
+            repos_lines.append(f"{repo_dir},{name},,")
 
             role = ctx.repos[repo_path].get("role", "")
             if role:
@@ -37,12 +37,12 @@ class Gita:
 
         (gita_dir / "repos.csv").write_text("\n".join(repos_lines) + "\n")
 
-        # groups.csv: group,repos (space-separated)
+        # groups.csv: colon-delimited, no header (gita reads with delimiter=":")
         if groups:
-            groups_lines = ["group,repos"]
+            groups_lines: list[str] = []
             for group_name in sorted(groups):
                 repos_str = " ".join(groups[group_name])
-                groups_lines.append(f"{group_name},{repos_str}")
+                groups_lines.append(f"{group_name}:{repos_str}")
             (gita_dir / "groups.csv").write_text("\n".join(groups_lines) + "\n")
 
         print(f"  wrote {_DIR}/ ({len(repos_lines) - 1} repos, {len(groups)} groups)")

@@ -43,11 +43,11 @@ class TestGitaActivate:
         repos_csv = (workspace / "gita" / "repos.csv").read_text()
         reader = csv.reader(io.StringIO(repos_csv))
         rows = list(reader)
-        # header + 2 repos
-        assert len(rows) == 3
-        # Sorted by repo path (skip header)
-        assert rows[1][1] == "lib"  # name column
-        assert rows[2][1] == "server"
+        # 2 repos, no header
+        assert len(rows) == 2
+        # Sorted by repo path
+        assert rows[0][1] == "lib"  # name column
+        assert rows[1][1] == "server"
 
     def test_generates_groups_csv(self, workspace: Path):
         repos = {
@@ -69,8 +69,9 @@ class TestGitaActivate:
         Gita().activate(_ctx(workspace, repos))
 
         groups_csv = (workspace / "gita" / "groups.csv").read_text()
-        assert "primary" in groups_csv
-        assert "dependency" in groups_csv
+        # Colon-delimited: group:repos
+        assert "primary:server" in groups_csv
+        assert "dependency:lib" in groups_csv
 
     def test_deactivate_removes_directory(self, workspace: Path):
         gita_dir = workspace / "gita"
