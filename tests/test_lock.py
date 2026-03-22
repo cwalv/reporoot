@@ -85,7 +85,6 @@ class TestLock:
         repos = read_repos(lock)
         assert "github/test-owner/test-repo" in repos
 
-
     def test_missing_repo_is_fatal(self, workspace: Path):
         """lock should fail when a declared repo is not cloned."""
         os.chdir(workspace)

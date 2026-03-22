@@ -164,11 +164,7 @@ def _hard_clean(root: Path, *, force: bool) -> None:
 
 def _clone_missing(root: Path, repos: dict[str, dict]) -> None:
     """Clone any repos that are declared but not present on disk."""
-    missing = {
-        path: info
-        for path, info in repos.items()
-        if not (root / path).exists() and info.get("url")
-    }
+    missing = {path: info for path, info in repos.items() if not (root / path).exists() and info.get("url")}
     if not missing:
         return
 
