@@ -69,8 +69,7 @@ class TestAddFromLocal:
         assert project_repos.exists()
         repos = read_repos(project_repos)
         assert repos["github/test-owner/test-repo"]["role"] == "primary"
-        content = project_repos.read_text()
-        assert "# our code" in content
+        assert repos["github/test-owner/test-repo"]["note"] == "our code"
 
 
 class TestAddBareRepo:

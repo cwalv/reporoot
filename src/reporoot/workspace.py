@@ -364,20 +364,6 @@ def read_repos_full(path: Path) -> dict:
     return data or {}
 
 
-def _format_entry(local_path: str, url: str, version: str, role: str | None = None, note: str | None = None) -> str:
-    """Format a single reporoot.yaml entry as YAML text."""
-    comment = ""
-    if note:
-        comment = f"  # {note}"
-    lines = [f"  {local_path}:{comment}"]
-    lines.append("    type: git")
-    lines.append(f"    url: {url}")
-    lines.append(f"    version: {version}")
-    if role:
-        lines.append(f"    role: {role}")
-    return "\n".join(lines) + "\n"
-
-
 def append_entry(
     repos_file: Path,
     local_path: str,
@@ -387,19 +373,32 @@ def append_entry(
     note: str | None = None,
 ) -> None:
     """Append a repo entry to a reporoot.yaml file, creating it if needed."""
-    if not repos_file.exists():
-        repos_file.parent.mkdir(parents=True, exist_ok=True)
-        repos_file.write_text("repositories:\n")
+    import yaml
 
-    # Check for duplicate
-    existing = read_repos(repos_file)
-    if local_path in existing:
+    if repos_file.exists():
+        data = read_repos_full(repos_file)
+    else:
+        repos_file.parent.mkdir(parents=True, exist_ok=True)
+        data = {}
+
+    repos = data.get("repositories")
+    if not isinstance(repos, dict):
+        repos = {}
+        data["repositories"] = repos
+
+    if local_path in repos:
         print(f"  skip {repos_file.name}: {local_path} already present")
         return
 
-    entry = _format_entry(local_path, url, version, role, note)
-    with open(repos_file, "a") as f:
-        f.write(entry)
+    entry: dict = {"type": "git", "url": url, "version": version}
+    if role:
+        entry["role"] = role
+    if note:
+        entry["note"] = note
+    repos[local_path] = entry
+
+    with open(repos_file, "w") as f:
+        yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
     print(f"  added to {repos_file.name}: {local_path}")
 
 

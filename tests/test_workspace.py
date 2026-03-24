@@ -227,6 +227,14 @@ class TestAppendEntry:
         captured = capsys.readouterr()
         assert "already present" in captured.out
 
+    def test_flow_style_empty_mapping(self, tmp_path: Path):
+        f = tmp_path / "flow.repos"
+        f.write_text("repositories: {}\n")
+        append_entry(f, "github/a/b", "https://github.com/a/b.git", "main")
+        import yaml
+        data = yaml.safe_load(f.read_text())
+        assert "github/a/b" in (data.get("repositories") or {})
+
     def test_role_field(self, tmp_path: Path):
         f = tmp_path / "role.repos"
         append_entry(
@@ -237,12 +245,9 @@ class TestAppendEntry:
             role="primary",
             note="our code",
         )
-        content = f.read_text()
-        assert "    role: primary" in content
-        assert "# our code" in content
-        # role should be a YAML field, not a comment
         repos = read_repos(f)
         assert repos["github/a/b"]["role"] == "primary"
+        assert repos["github/a/b"]["note"] == "our code"
 
 
 # --- Workspace management tests ---
