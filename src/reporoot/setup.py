@@ -45,21 +45,6 @@ def prime() -> None:
     lines.append("  Working in a workspace: paths like github/owner/repo/ are worktrees,")
     lines.append("  not clones. The actual git store is at root/github/owner/repo.git/")
 
-    # Surface doc locations if present
-    doc_lines = []
-    if ctx.project:
-        project_docs = root / "projects" / ctx.project / "docs"
-        if project_docs.is_dir():
-            doc_lines.append(f"  {project_docs.relative_to(root)}/")
-    if not doc_lines:
-        docs_dir = root / "docs"
-        if docs_dir.is_dir():
-            doc_lines.append(f"  {docs_dir.relative_to(root)}/")
-    if doc_lines:
-        lines.append("")
-        lines.append("## Key Docs")
-        lines.extend(doc_lines)
-
     print("\n".join(lines))
 
 
