@@ -55,12 +55,13 @@ def prime() -> None:
             found_docs = True
             design_doc = project_docs / "workspace-design.md"
             if design_doc.exists():
-                lines.append(f"  {design_doc}  (architecture reference — authoritative)")
-            lines.append(f"  {project_docs}/  (project-level design docs)")
+                rel = design_doc.relative_to(root)
+                lines.append(f"  {rel}  (architecture reference — authoritative)")
+            lines.append(f"  {project_docs.relative_to(root)}/  (project-level design docs)")
     if not found_docs:
         docs_dir = root / "docs"
         if docs_dir.is_dir():
-            lines.append(f"  {docs_dir}/")
+            lines.append(f"  {docs_dir.relative_to(root)}/")
 
     print("\n".join(lines))
 
