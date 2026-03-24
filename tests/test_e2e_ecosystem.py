@@ -58,11 +58,15 @@ def eco_workspace(tmp_path: Path) -> Path:
     return ws
 
 
-def _activate(project: str) -> None:
-    """Run reporoot activate via CLI."""
-    from reporoot.cli import main
+def _activate(ws: Path, project: str) -> None:
+    """Run integration activation at workspace root."""
+    from reporoot.integrations.registry import run_activate
+    from reporoot.workspace import project_repos_file, read_repos, read_repos_full
 
-    main(["activate", project])
+    repos_file = project_repos_file(ws, project)
+    repos = read_repos(repos_file)
+    repos_full = read_repos_full(repos_file)
+    run_activate(ws, project, repos, repos_full.get("integrations", {}))
 
 
 def _setup_project(ws: Path, project: str, repos: dict[str, dict]) -> None:
@@ -118,7 +122,7 @@ class TestNpmWorkspacesE2E:
             "github/test/app": {"url": "https://github.com/test/app.git"},
         }
         _setup_project(ws, "myproject", repos)
-        _activate("myproject")
+        _activate(ws, "myproject")
 
         # Verify root package.json was generated
         root_pkg = json.loads((ws / "package.json").read_text())
@@ -150,7 +154,7 @@ class TestGoWorkE2E:
 
         repos = {"github/test/gomod": {"url": "https://github.com/test/gomod.git"}}
         _setup_project(ws, "myproject", repos)
-        _activate("myproject")
+        _activate(ws, "myproject")
 
         # go.work should exist and reference the module
         go_work = ws / "go.work"
@@ -182,7 +186,7 @@ class TestUvWorkspaceE2E:
 
         repos = {"github/test/pylib": {"url": "https://github.com/test/pylib.git"}}
         _setup_project(ws, "myproject", repos)
-        _activate("myproject")
+        _activate(ws, "myproject")
 
         # Root pyproject.toml with uv workspace should exist
         root_toml = ws / "pyproject.toml"
@@ -212,7 +216,7 @@ class TestGitaE2E:
             },
         }
         _setup_project(ws, "myproject", repos)
-        _activate("myproject")
+        _activate(ws, "myproject")
 
         gita_dir = ws / "gita"
         assert gita_dir.is_dir()

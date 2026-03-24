@@ -165,25 +165,6 @@ class TestFullCycle:
         captured = capsys.readouterr()
         assert "all checks passed" in captured.out
 
-    def test_fetch_then_activate(self, e2e_env, capsys):
-        """Activate after fetch sets .reporoot-active and runs integrations."""
-        from reporoot.cli import main
-
-        os.chdir(e2e_env["workspace"])
-        main(["fetch", e2e_env["project_url"]])
-
-        capsys.readouterr()
-        main(["activate", "myproject"])
-        captured = capsys.readouterr()
-        assert "activate: myproject" in captured.out
-
-        # Re-activate should say "already active"
-        capsys.readouterr()
-        main(["activate", "myproject"])
-        captured = capsys.readouterr()
-        assert "already active" in captured.out
-
-
 class TestCheckOutput:
     def test_check_summary_vs_verbose(self, e2e_env, capsys):
         """Default check shows counts; -v shows details."""
@@ -262,17 +243,7 @@ class TestCheckOutput:
         assert "lib-a" in captured.out
 
 
-class TestDeactivate:
-    def test_deactivate_noop_without_active(self, e2e_env):
-        """Deactivate works even when no .reporoot-active exists."""
-        from reporoot.cli import main
-
-        os.chdir(e2e_env["workspace"])
-        main(["fetch", e2e_env["project_url"]])
-
-        # No .reporoot-active in new model — deactivate should still work
-        main(["deactivate"])
-
+class TestResolve:
     def test_resolve_prints_root(self, e2e_env, capsys):
         """reporoot resolve prints the workspace root."""
         from reporoot.cli import main
