@@ -22,6 +22,18 @@ def prime() -> None:
 
     lines = ["# Reporoot Project Context"]
     lines.append("")
+    lines.append("reporoot is a multi-repo workspace manager. Run `reporoot --help` for commands.")
+
+    try:
+        from importlib.metadata import version as pkg_version
+        ver = pkg_version("reporoot")
+        # Only link to tagged releases (no .devN, +dirty, etc.)
+        if ver and not any(c in ver for c in ("+", ".dev")):
+            lines.append(f"Docs: https://github.com/cwalv/reporoot/blob/v{ver}/README.md")
+    except Exception:
+        pass
+
+    lines.append("")
     lines.append(f"Root: {root}")
 
     if ctx.project:
