@@ -13,6 +13,8 @@ Commands:
   reporoot lock                     Snapshot repo versions for the active project
   reporoot lock-all                 Snapshot repo versions for all projects
   reporoot check                    Run convention enforcement checks
+  reporoot prime                    Print project context for agent consumption
+  reporoot setup claude             Register hooks in ~/.claude/settings.json
 """
 
 from __future__ import annotations
@@ -148,6 +150,23 @@ def main(argv: list[str] | None = None) -> None:
     )
     check_p.add_argument("-v", "--verbose", action="store_true", help="Show each issue individually instead of counts")
 
+    # reporoot prime
+    sub.add_parser(
+        "prime",
+        help="Print project context for agent consumption",
+        description="Output reporoot project context (root, layout, doc locations) to stdout.\nDesigned to be called from a SessionStart or PreCompact hook.",
+        formatter_class=_raw,
+    )
+
+    # reporoot setup
+    setup_p = sub.add_parser(
+        "setup",
+        help="Configure agent integrations",
+        description="Configure AI coding assistant integrations.",
+        formatter_class=_raw,
+    )
+    setup_p.add_argument("integration", choices=["claude"], help="Integration to configure")
+
     args = parser.parse_args(argv)
 
     if args.command is None:
@@ -214,6 +233,14 @@ def main(argv: list[str] | None = None) -> None:
         from reporoot.check import run
 
         run(verbose=args.verbose)
+    elif args.command == "prime":
+        from reporoot.setup import prime
+
+        prime()
+    elif args.command == "setup":
+        from reporoot.setup import setup_claude
+
+        setup_claude()
 
 
 def _show_context() -> None:
