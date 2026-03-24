@@ -8,7 +8,6 @@ import pytest
 
 from reporoot.workspace import (
     _is_workspace_dir,
-    active_project,
     all_known_repos,
     all_project_repos_files,
     append_entry,
@@ -23,7 +22,6 @@ from reporoot.workspace import (
     project_lock_file,
     project_repos_file,
     read_repos,
-    require_active_project,
     sync_workspace,
     workspace_dir,
 )
@@ -38,10 +36,6 @@ class TestFindRoot:
         (tmp_path / "projects").mkdir()
         assert find_root(tmp_path) == tmp_path
 
-    def test_finds_by_rr_active(self, tmp_path: Path):
-        (tmp_path / ".reporoot-active").write_text("myproject\n")
-        assert find_root(tmp_path) == tmp_path
-
     def test_finds_from_subdirectory(self, workspace: Path):
         sub = workspace / "github" / "owner" / "repo"
         sub.mkdir(parents=True)
@@ -50,37 +44,6 @@ class TestFindRoot:
     def test_raises_if_not_found(self, tmp_path: Path):
         with pytest.raises(SystemExit, match="not inside a reporoot"):
             find_root(tmp_path)
-
-
-class TestActiveProject:
-    def test_no_active_file(self, workspace: Path):
-        assert active_project(workspace) is None
-
-    def test_empty_active_file(self, workspace: Path):
-        (workspace / ".reporoot-active").write_text("")
-        assert active_project(workspace) is None
-
-    def test_valid_active_project(self, workspace: Path):
-        project_dir = workspace / "projects" / "myproject"
-        project_dir.mkdir(parents=True)
-        (workspace / ".reporoot-active").write_text("myproject\n")
-        assert active_project(workspace) == "myproject"
-
-    def test_invalid_project_warns(self, workspace: Path, capsys):
-        (workspace / ".reporoot-active").write_text("nonexistent\n")
-        assert active_project(workspace) is None
-        captured = capsys.readouterr()
-        assert "does not exist" in captured.out
-
-    def test_multi_segment_active_project(self, workspace: Path):
-        project_dir = workspace / "projects" / "chatly" / "web-app"
-        project_dir.mkdir(parents=True)
-        (workspace / ".reporoot-active").write_text("chatly/web-app\n")
-        assert active_project(workspace) == "chatly/web-app"
-
-    def test_require_active_raises(self, workspace: Path):
-        with pytest.raises(SystemExit, match="no active project"):
-            require_active_project(workspace)
 
 
 class TestProjectReposFile:
@@ -401,15 +364,6 @@ class TestInferContext:
         ctx = infer_context(repo)
         assert ctx.root == workspace
         assert ctx.project is None
-        assert ctx.workspace is None
-
-    def test_from_outside_with_active_project(self, workspace: Path):
-        (workspace / "projects" / "myproject").mkdir(parents=True)
-        (workspace / ".reporoot-active").write_text("myproject\n")
-        repo = workspace / "github" / "owner" / "repo"
-        repo.mkdir(parents=True)
-        ctx = infer_context(repo)
-        assert ctx.project == "myproject"
         assert ctx.workspace is None
 
     def test_multi_segment_project(self, workspace: Path):

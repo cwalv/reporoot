@@ -188,15 +188,16 @@ def main(argv: list[str] | None = None) -> None:
         print(find_root())
     elif args.command == "fetch":
         if args.source is None:
-            from reporoot.workspace import find_root, project_fetch_source, require_active_project
+            from reporoot.workspace import infer_context, project_fetch_source
 
-            root = find_root()
-            project = require_active_project(root)
-            source = project_fetch_source(root, project)
+            ctx = infer_context()
+            if ctx.project is None:
+                raise SystemExit("fatal: cannot determine project (cd into a workspace or project directory)")
+            source = project_fetch_source(ctx.root, ctx.project)
             if source:
                 print(source)
             else:
-                raise SystemExit(f"fatal: cannot determine fetch source for project '{project}'")
+                raise SystemExit(f"fatal: cannot determine fetch source for project '{ctx.project}'")
         else:
             from reporoot.fetch import run
 

@@ -24,10 +24,10 @@ from reporoot.workspace import (
     bare_repo_path,
     find_git_repos,
     find_root,
+    infer_context,
     project_lock_file,
     read_repos,
     read_repos_full,
-    require_active_project,
 )
 
 
@@ -133,11 +133,9 @@ def run(verbose: bool = False) -> None:
         for detail in _check_stale_lock(root, project):
             stale_locks.append((project, detail))
 
-    # 3. Integration checks (only if there's an active project)
-    try:
-        active = require_active_project(root)
-    except SystemExit:
-        active = None
+    # 3. Integration checks (only if CWD resolves to a project)
+    ctx = infer_context()
+    active = ctx.project
 
     if active:
         active_repos_file = None

@@ -15,7 +15,7 @@ from reporoot.workspace import read_repos
 class TestRemove:
     def test_remove_existing_repo(self, workspace_with_project: tuple[Path, Path]):
         workspace, repo = workspace_with_project
-        os.chdir(workspace)
+        os.chdir(workspace / "projects" / "test-project")
 
         repos_file = workspace / "projects" / "test-project" / "reporoot.yaml"
         assert "github/test-owner/test-repo" in read_repos(repos_file)
@@ -28,7 +28,7 @@ class TestRemove:
 
     def test_remove_with_delete(self, workspace_with_project: tuple[Path, Path]):
         workspace, repo = workspace_with_project
-        os.chdir(workspace)
+        os.chdir(workspace / "projects" / "test-project")
 
         assert repo.exists()
         run(path="github/test-owner/test-repo", delete=True, force=True)
@@ -39,7 +39,7 @@ class TestRemove:
 
     def test_remove_nonexistent_path(self, workspace_with_project: tuple[Path, Path]):
         workspace, _ = workspace_with_project
-        os.chdir(workspace)
+        os.chdir(workspace / "projects" / "test-project")
 
         with pytest.raises(SystemExit, match="not found"):
             run(path="github/no-owner/no-repo")
@@ -60,10 +60,7 @@ class TestRemove:
                 "    role: primary\n"
             )
 
-        # Set alpha as active
-        (workspace / ".reporoot-active").write_text("alpha\n")
-
-        # Remove from beta (not the active project)
+        # Remove from beta explicitly via --project
         run(path="github/test-owner/test-repo", project="beta")
 
         # beta should have it removed
@@ -78,7 +75,7 @@ class TestRemove:
         self, workspace_with_project: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
     ):
         workspace, repo = workspace_with_project
-        os.chdir(workspace)
+        os.chdir(workspace / "projects" / "test-project")
 
         # Manually remove the clone so --delete has nothing to delete
         import shutil
@@ -127,10 +124,10 @@ class TestRemoveBareRepo:
         worktrees = worktree_list(bare)
         assert len(worktrees) == 0
 
-    def test_remove_outside_workspace_uses_legacy_flow(self, workspace_with_project: tuple[Path, Path]):
-        """When not in a workspace, remove should use the legacy flow."""
+    def test_remove_from_project_dir(self, workspace_with_project: tuple[Path, Path]):
+        """When CWD is the project directory (not a workspace), remove should still work."""
         workspace, repo = workspace_with_project
-        os.chdir(workspace)
+        os.chdir(workspace / "projects" / "test-project")
 
         repos_file = workspace / "projects" / "test-project" / "reporoot.yaml"
         assert "github/test-owner/test-repo" in read_repos(repos_file)

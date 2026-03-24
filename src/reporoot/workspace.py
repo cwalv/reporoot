@@ -29,8 +29,8 @@ def _is_workspace_dir(p: Path) -> bool:
 def find_root(start: Path | None = None) -> Path:
     """Walk up from start (default: cwd) looking for a reporoot.
 
-    A reporoot is identified by having a projects/ directory, an .reporoot-active
-    file, or any known registry directory (github/, gitlab/, etc.).
+    A reporoot is identified by having a projects/ directory or any known
+    registry directory (github/, gitlab/, etc.).
 
     Skips workspace directories that mirror the registry layout to avoid
     false matches inside projects/{name}/workspaces/{ws}/.
@@ -40,37 +40,15 @@ def find_root(start: Path | None = None) -> Path:
     p = (start or Path.cwd()).resolve()
     names = registry_names()
     while True:
-        if (p / "projects").is_dir() or (p / ".reporoot-active").exists():
+        if (p / "projects").is_dir():
             return p
         if not _is_workspace_dir(p):
             for name in names:
                 if (p / name).is_dir():
                     return p
         if p.parent == p:
-            raise SystemExit("fatal: not inside a reporoot (no registry dir, projects/, or .reporoot-active found)")
+            raise SystemExit("fatal: not inside a reporoot (no projects/ or registry dir found)")
         p = p.parent
-
-
-# --- Active project ---
-
-
-def active_project(root: Path) -> str | None:
-    """Read .reporoot-active and return the project name, or None if no project is active.
-
-    Validates that the named project directory exists.  If .reporoot-active names a
-    project that doesn't exist in projects/, prints a warning and returns None.
-    """
-    active_file = root / ".reporoot-active"
-    if not active_file.exists():
-        return None
-    name = active_file.read_text().strip()
-    if not name:
-        return None
-    project_dir = root / "projects" / name
-    if not project_dir.is_dir():
-        print(f"warning: .reporoot-active names '{name}' but projects/{name}/ does not exist")
-        return None
-    return name
 
 
 def project_fetch_source(root: Path, project: str) -> str | None:
@@ -99,26 +77,6 @@ def project_fetch_source(root: Path, project: str) -> str | None:
     return f"{registry}/{owner}/{repo}"
 
 
-def require_active_project(root: Path) -> str:
-    """Like active_project() but raises SystemExit if no project is active."""
-    name = active_project(root)
-    if name is None:
-        raise SystemExit("fatal: no active project (run 'reporoot activate <project>')")
-    return name
-
-
-def active_repos_file(root: Path) -> Path:
-    """Return the reporoot.yaml path for the active project."""
-    name = require_active_project(root)
-    return project_repos_file(root, name)
-
-
-def active_lock_file(root: Path) -> Path:
-    """Return the reporoot.lock path for the active project."""
-    name = require_active_project(root)
-    return project_lock_file(root, name)
-
-
 # --- Workspace context ---
 
 
@@ -137,7 +95,7 @@ def infer_context(cwd: Path | None = None) -> WorkspaceContext:
     Resolution order:
     1. If CWD is under projects/{project}/workspaces/{name}/, extract both.
     2. If CWD is under projects/{project}/, extract the project.
-    3. Fall back to .reporoot-active for the project.
+    3. Otherwise, project is None (CWD-based resolution only).
     """
     root = find_root(cwd)
     resolved = (cwd or Path.cwd()).resolve()
@@ -146,7 +104,7 @@ def infer_context(cwd: Path | None = None) -> WorkspaceContext:
     try:
         rel = resolved.relative_to(projects_dir)
     except ValueError:
-        return WorkspaceContext(root=root, project=active_project(root), workspace=None)
+        return WorkspaceContext(root=root, project=None, workspace=None)
 
     parts = rel.parts
     if not parts:

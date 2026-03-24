@@ -63,7 +63,7 @@ def workspace(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def workspace_with_project(workspace: Path, git_repo: Path) -> tuple[Path, Path]:
-    """Workspace with an active project and one git repo registered in it."""
+    """Workspace with a project and one git repo registered in it."""
     # Create project directory with reporoot.yaml file
     project_dir = workspace / "projects" / "test-project"
     project_dir.mkdir(parents=True)
@@ -91,9 +91,6 @@ def workspace_with_project(workspace: Path, git_repo: Path) -> tuple[Path, Path]
         "    version: main\n"
         "    role: primary\n"
     )
-
-    # Set active project
-    (workspace / ".reporoot-active").write_text("test-project\n")
 
     return workspace, target
 
@@ -157,9 +154,6 @@ def workspace_with_bare_repo(workspace: Path, git_repo: Path) -> tuple[Path, Pat
         capture_output=True,
         check=True,
     )
-
-    # Set active project
-    (workspace / ".reporoot-active").write_text("test-project\n")
 
     return workspace, bare
 

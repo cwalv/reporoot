@@ -90,10 +90,10 @@ def _lock_project(root: Path, project: str, repos_file: Path) -> int:
 
 
 def run() -> None:
-    """Lock the active project (inferred from CWD or .reporoot-active)."""
+    """Lock the active project (inferred from CWD)."""
     ctx = infer_context()
     if ctx.project is None:
-        raise SystemExit("fatal: no active project (run 'reporoot activate <project>' or cd into a workspace)")
+        raise SystemExit("fatal: cannot determine project (cd into a workspace or project directory)")
     repos_file = project_repos_file(ctx.root, ctx.project)
     if not repos_file.exists():
         raise SystemExit(f"fatal: no reporoot.yaml found for project '{ctx.project}'")

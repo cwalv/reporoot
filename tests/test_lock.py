@@ -14,7 +14,7 @@ from reporoot.workspace import read_repos
 class TestLock:
     def test_generates_lock_file(self, workspace_with_project: tuple[Path, Path]):
         workspace, repo = workspace_with_project
-        os.chdir(workspace)
+        os.chdir(workspace / "projects" / "test-project")
         run()
         lock = workspace / "projects" / "test-project" / "reporoot.lock"
         assert lock.exists()
@@ -26,7 +26,7 @@ class TestLock:
 
     def test_no_active_project_raises(self, workspace: Path):
         os.chdir(workspace)
-        with pytest.raises(SystemExit, match="no active project"):
+        with pytest.raises(SystemExit, match="cannot determine project"):
             run()
 
     def test_lock_from_workspace_cwd(self, workspace: Path, bare_repo: Path):
@@ -76,8 +76,7 @@ class TestLock:
             "    version: main\n"
         )
 
-        (workspace / ".reporoot-active").write_text("test-project\n")
-        os.chdir(workspace)
+        os.chdir(project_dir)
 
         run()
         lock = project_dir / "reporoot.lock"
@@ -87,7 +86,6 @@ class TestLock:
 
     def test_missing_repo_is_fatal(self, workspace: Path):
         """lock should fail when a declared repo is not cloned."""
-        os.chdir(workspace)
         project_dir = workspace / "projects" / "test-project"
         project_dir.mkdir(parents=True)
         (project_dir / "reporoot.yaml").write_text(
@@ -97,7 +95,7 @@ class TestLock:
             "    url: https://github.com/test-owner/missing-repo.git\n"
             "    version: main\n"
         )
-        (workspace / ".reporoot-active").write_text("test-project\n")
+        os.chdir(project_dir)
 
         with pytest.raises(SystemExit, match="could not be exported"):
             run()

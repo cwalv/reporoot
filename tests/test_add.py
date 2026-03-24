@@ -15,7 +15,7 @@ from reporoot.workspace import bare_repo_path, read_repos
 class TestAddFromLocal:
     def test_add_local_repo(self, workspace_with_project: tuple[Path, Path], git_repo: Path):
         workspace, _ = workspace_with_project
-        os.chdir(workspace)
+        os.chdir(workspace / "projects" / "test-project")
 
         # Create a second git repo to add
         second = git_repo.parent / "repo2"
@@ -46,15 +46,15 @@ class TestAddFromLocal:
 
     def test_add_existing_repo_skips_clone(self, workspace_with_project: tuple[Path, Path]):
         workspace, repo = workspace_with_project
-        os.chdir(workspace)
+        os.chdir(workspace / "projects" / "test-project")
         # test-owner/test-repo already exists from fixture — should skip clone and register
         run(source="https://github.com/test-owner/test-repo.git", role="primary")
         project_repos = read_repos(workspace / "projects" / "test-project" / "reporoot.yaml")
         assert "github/test-owner/test-repo" in project_repos
 
-    def test_add_requires_active_project(self, workspace: Path, git_repo: Path):
+    def test_add_requires_project_context(self, workspace: Path, git_repo: Path):
         os.chdir(workspace)
-        with pytest.raises(SystemExit, match="no active project"):
+        with pytest.raises(SystemExit, match="cannot determine project"):
             run(source=str(git_repo))
 
     def test_add_with_project_override(self, workspace: Path, git_repo: Path):
@@ -126,12 +126,12 @@ class TestAddBareRepo:
         project_repos = read_repos(root / "projects" / "test-project" / "reporoot.yaml")
         assert "github/test-owner/test-repo" in project_repos
 
-    def test_add_falls_back_to_regular_clone_outside_workspace(
+    def test_add_regular_clone_from_project_dir(
         self, workspace_with_project: tuple[Path, Path], git_repo: Path
     ):
-        """When not in a workspace, add should use the legacy regular clone flow."""
+        """When in a project dir (not a workspace), add should use the regular clone flow."""
         workspace, _ = workspace_with_project
-        os.chdir(workspace)
+        os.chdir(workspace / "projects" / "test-project")
 
         # Create a second git repo to add
         second = git_repo.parent / "repo2"
@@ -164,6 +164,6 @@ class TestAddBareRepo:
 class TestAddInvalidSource:
     def test_nonexistent_path(self, workspace_with_project: tuple[Path, Path]):
         workspace, _ = workspace_with_project
-        os.chdir(workspace)
+        os.chdir(workspace / "projects" / "test-project")
         with pytest.raises(SystemExit, match="not a URL or a local git repo"):
             run(source="/nonexistent/path")

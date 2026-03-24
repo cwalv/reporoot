@@ -1,10 +1,10 @@
-"""reporoot add — add a repo to the active project.
+"""reporoot add — add a repo to a project.
 
 Usage:
   reporoot add <url>                              Clone from URL to {registry}/{owner}/{repo}/
   reporoot add <local-path>                       Move local repo (reads its remote)
   reporoot add <source> --role r                  Set role
-  reporoot add <source> --project p               Add to a specific project (override active)
+  reporoot add <source> --project p               Add to a specific project
   reporoot add <source> --as-project name         Add as a project repo to projects/{name}/
 """
 
@@ -30,7 +30,6 @@ from reporoot.workspace import (
     project_repos_file,
     read_repos,
     read_repos_full,
-    require_active_project,
     workspace_dir,
 )
 
@@ -143,7 +142,9 @@ def run(
     # Add to project reporoot.yaml
     if not as_project:
         # Determine which project to add to
-        target_project = project or (ctx.project if in_workspace else None) or require_active_project(root)
+        target_project = project or ctx.project
+        if not target_project:
+            raise SystemExit("fatal: cannot determine project (cd into a workspace or use --project)")
         repos_file = project_repos_file(root, target_project)
         if not repos_file.parent.exists():
             print(f"  warning: project dir projects/{target_project}/ does not exist, skipping reporoot.yaml update")

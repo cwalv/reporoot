@@ -1,7 +1,7 @@
 """reporoot remove — remove a repo from a project.
 
 Usage:
-  reporoot remove <path>                  Remove from active project's reporoot.yaml, re-run activate
+  reporoot remove <path>                  Remove from project's reporoot.yaml, re-run integrations
   reporoot remove <path> --project p      Remove from a specific project
   reporoot remove <path> --delete         Also rm -rf the clone from disk
   reporoot remove <path> --delete --force Skip confirmation for disk deletion
@@ -20,7 +20,6 @@ from reporoot.workspace import (
     read_repos,
     read_repos_full,
     remove_entry,
-    require_active_project,
     workspace_dir,
 )
 
@@ -36,7 +35,9 @@ def run(
     root = ctx.root
     in_workspace = ctx.workspace is not None
 
-    target_project = project or (ctx.project if in_workspace else None) or require_active_project(root)
+    target_project = project or ctx.project
+    if not target_project:
+        raise SystemExit("fatal: cannot determine project (cd into a workspace or use --project)")
     repos_file = project_repos_file(root, target_project)
 
     # Verify the entry exists before removing
