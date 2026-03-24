@@ -13,8 +13,6 @@ Commands:
   reporoot lock                     Snapshot repo versions for the active project
   reporoot lock-all                 Snapshot repo versions for all projects
   reporoot check                    Run convention enforcement checks
-  reporoot activate <project>       (compat) Set active project
-  reporoot deactivate               (compat) Clear active project
 """
 
 from __future__ import annotations
@@ -61,26 +59,6 @@ def main(argv: list[str] | None = None) -> None:
     workspace_p.add_argument("--sync", action="store_true", help="Sync workspace with project manifest")
     workspace_p.add_argument("--list", action="store_true", dest="list_ws", help="List workspaces for the project")
 
-    # reporoot activate (backward compat)
-    activate_p = sub.add_parser(
-        "activate",
-        help="(compat) Set the active project and run integrations",
-        description=(
-            "Set the active project, write .reporoot-active, clone any missing\n"
-            "repos, and run all enabled integrations (npm workspaces, go work,\n"
-            "uv, gita, vscode). Switching projects automatically cleans up the\n"
-            "previous project's derived files before generating new ones."
-        ),
-        formatter_class=_raw,
-    )
-    activate_p.add_argument("project", help="Project name")
-    activate_p.add_argument(
-        "--no-fetch",
-        dest="no_fetch",
-        action="store_true",
-        help="Skip cloning missing repos",
-    )
-
     # reporoot add
     add_p = sub.add_parser(
         "add",
@@ -125,33 +103,6 @@ def main(argv: list[str] | None = None) -> None:
         formatter_class=_raw,
     )
     fetch_p.add_argument("source", nargs="?", default=None, help="URL, registry/owner/project, or owner/project")
-
-    # reporoot deactivate (backward compat)
-    deactivate_p = sub.add_parser(
-        "deactivate",
-        help="(compat) Remove derived files, clear active project",
-        description=(
-            "Remove all integration-generated files (package.json, go.work,\n"
-            "pyproject.toml, .gita/, .code-workspace) and clear the active\n"
-            "project pointer.\n"
-            "\n"
-            "With --hard, also removes everything at root that isn't a known\n"
-            "registry directory or projects/ — tool state like node_modules,\n"
-            ".venv, lock files, build output, etc. Each item is confirmed\n"
-            "interactively unless --force is passed."
-        ),
-        formatter_class=_raw,
-    )
-    deactivate_p.add_argument(
-        "--hard",
-        action="store_true",
-        help="Also remove all non-repo content at root (node_modules, .venv, lock files, etc.)",
-    )
-    deactivate_p.add_argument(
-        "--force",
-        action="store_true",
-        help="With --hard, skip confirmation prompts",
-    )
 
     # reporoot resolve
     sub.add_parser("resolve", help="Print the workspace root path")
@@ -212,10 +163,6 @@ def main(argv: list[str] | None = None) -> None:
             workspace_list(args.project)
         else:
             workspace_run(args.project, args.name, delete=args.delete, sync=args.sync)
-    elif args.command == "activate":
-        from reporoot.activate import run as activate_run
-
-        activate_run(project=args.project)
     elif args.command == "add":
         from reporoot.add import run
 
@@ -235,10 +182,6 @@ def main(argv: list[str] | None = None) -> None:
             delete=args.delete,
             force=args.force,
         )
-    elif args.command == "deactivate":
-        from reporoot.activate import deactivate
-
-        deactivate(hard=args.hard, force=args.force)
     elif args.command == "resolve":
         from reporoot.workspace import find_root
 
