@@ -36,6 +36,16 @@ class IntegrationContext:
         """True when root is a workspace dir (e.g., projects/myproject/workspaces/default/)."""
         return "workspaces" in self.root.parts
 
+    @property
+    def workspace_name(self) -> str | None:
+        """Workspace name derived from path, or None if not in a workspace dir."""
+        parts = self.root.parts
+        if "workspaces" in parts:
+            idx = list(parts).index("workspaces")
+            if idx + 1 < len(parts):
+                return parts[idx + 1]
+        return None
+
     def active_repos(self) -> dict[str, dict]:
         """Return repos excluding reference repos (not suitable for ecosystem workspaces)."""
         return {k: v for k, v in self.repos.items() if v.get("role") != "reference"}
