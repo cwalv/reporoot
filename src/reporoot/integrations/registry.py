@@ -14,11 +14,13 @@ def _all_integrations() -> list[Integration]:
     from reporoot.integrations.gita import Gita
     from reporoot.integrations.go_work import GoWork
     from reporoot.integrations.npm_workspaces import NpmWorkspaces
+    from reporoot.integrations.pnpm_workspaces import PnpmWorkspaces
     from reporoot.integrations.uv_workspace import UvWorkspace
     from reporoot.integrations.vscode_workspace import VscodeWorkspace
 
     return [
         NpmWorkspaces(),
+        PnpmWorkspaces(),
         GoWork(),
         UvWorkspace(),
         CargoWorkspace(),
