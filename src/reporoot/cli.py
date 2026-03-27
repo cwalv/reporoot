@@ -35,6 +35,11 @@ def main(argv: list[str] | None = None) -> None:
         description="Reporoot workspace manager",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {_version()}")
+
+    import shtab
+
+    shtab.add_argument_to(parser)
+
     sub = parser.add_subparsers(dest="command")
 
     _raw = argparse.RawDescriptionHelpFormatter

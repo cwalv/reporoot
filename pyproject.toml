@@ -3,7 +3,10 @@ name = "reporoot"
 version = "0.4.0"
 description = "Reporoot workspace manager"
 requires-python = ">=3.10"
-dependencies = ["pyyaml>=6.0"]
+dependencies = [
+    "pyyaml>=6.0",
+    "shtab>=1.8.0",
+]
 authors = [{name = "cwalv", email = "c@cwa.lv"}]
 readme = "README.md"
 license = "MIT"
