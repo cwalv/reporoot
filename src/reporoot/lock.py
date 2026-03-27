@@ -14,10 +14,10 @@ from reporoot.workspace import (
     all_project_repos_files,
     bare_repo_path,
     find_root,
-    infer_context,
     project_lock_file,
     project_repos_file,
     read_repos,
+    require_context,
 )
 
 
@@ -89,11 +89,12 @@ def _lock_project(root: Path, project: str, repos_file: Path) -> int:
     return 0
 
 
-def run() -> None:
-    """Lock the active project (inferred from CWD)."""
-    ctx = infer_context()
-    if ctx.project is None:
-        raise SystemExit("fatal: cannot determine project (cd into a workspace or project directory)")
+def run(
+    project: str | None = None,
+    workspace: str | None = None,
+) -> None:
+    """Lock the active project (inferred from CWD or overridden via flags)."""
+    ctx = require_context(project=project, workspace=workspace)
     repos_file = project_repos_file(ctx.root, ctx.project)
     if not repos_file.exists():
         raise SystemExit(f"fatal: no reporoot.yaml found for project '{ctx.project}'")

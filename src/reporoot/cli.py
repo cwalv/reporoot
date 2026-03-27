@@ -74,6 +74,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     add_p.add_argument("source", help="GitHub URL or local path to a git repo")
     add_p.add_argument("--project", "-p", help="Override: add to this project instead of the active one")
+    add_p.add_argument("--workspace", "-w", help="Override: target this workspace instead of the inferred one")
     add_p.add_argument("--role", "-r", help="Role annotation (primary, fork, dependency, reference)")
     add_p.add_argument("--note", "-n", help="Freeform note after the role annotation")
     add_p.add_argument("--as-project", dest="as_project", help="Add as a project repo to projects/{name}/")
@@ -90,6 +91,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     remove_p.add_argument("path", help="Local path of the repo (e.g., github/owner/repo)")
     remove_p.add_argument("--project", "-p", help="Override: remove from this project instead of the active one")
+    remove_p.add_argument("--workspace", "-w", help="Override: target this workspace instead of the inferred one")
     remove_p.add_argument("--delete", action="store_true", help="Also delete the clone from disk")
     remove_p.add_argument("--force", action="store_true", help="With --delete, skip confirmation prompt")
 
@@ -110,7 +112,7 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("resolve", help="Print the workspace root path")
 
     # reporoot lock
-    sub.add_parser(
+    lock_p = sub.add_parser(
         "lock",
         help="Snapshot repo versions for the active project",
         description=(
@@ -120,6 +122,8 @@ def main(argv: list[str] | None = None) -> None:
         ),
         formatter_class=_raw,
     )
+    lock_p.add_argument("--project", "-p", help="Override: lock this project instead of the active one")
+    lock_p.add_argument("--workspace", "-w", help="Override: use this workspace for version resolution")
 
     # reporoot lock-all
     sub.add_parser(
@@ -188,6 +192,7 @@ def main(argv: list[str] | None = None) -> None:
         run(
             source=args.source,
             project=args.project,
+            workspace=args.workspace,
             role=args.role,
             note=args.note,
             as_project=args.as_project,
@@ -198,13 +203,18 @@ def main(argv: list[str] | None = None) -> None:
         run(
             path=args.path,
             project=args.project,
+            workspace=args.workspace,
             delete=args.delete,
             force=args.force,
         )
     elif args.command == "resolve":
-        from reporoot.workspace import find_root
+        from reporoot.workspace import find_root, infer_context, workspace_dir
 
-        print(find_root())
+        ctx = infer_context()
+        if ctx.project and ctx.workspace:
+            print(workspace_dir(ctx.root, ctx.project, ctx.workspace))
+        else:
+            print(find_root())
     elif args.command == "fetch":
         if args.source is None:
             from reporoot.workspace import infer_context, project_fetch_source
@@ -224,7 +234,7 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "lock":
         from reporoot.lock import run
 
-        run()
+        run(project=args.project, workspace=args.workspace)
     elif args.command == "lock-all":
         from reporoot.lock import run_all
 

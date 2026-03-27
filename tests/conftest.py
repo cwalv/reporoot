@@ -63,26 +63,14 @@ def workspace(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def workspace_with_project(workspace: Path, git_repo: Path) -> tuple[Path, Path]:
-    """Workspace with a project and one git repo registered in it."""
-    # Create project directory with reporoot.yaml file
+    """Workspace with a project, bare repo, and default workspace with worktree.
+
+    Returns (root, worktree_path).
+    """
+    # Create project directory with reporoot.yaml
     project_dir = workspace / "projects" / "test-project"
     project_dir.mkdir(parents=True)
 
-    # Clone the git_repo into the workspace
-    target = workspace / "github" / "test-owner" / "test-repo"
-    target.parent.mkdir(parents=True)
-    subprocess.run(
-        ["git", "clone", "--local", str(git_repo), str(target)],
-        capture_output=True,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "-C", str(target), "remote", "set-url", "origin", "https://github.com/test-owner/test-repo.git"],
-        capture_output=True,
-        check=True,
-    )
-
-    # Register in project reporoot.yaml file
     (project_dir / "reporoot.yaml").write_text(
         "repositories:\n"
         "  github/test-owner/test-repo:\n"
@@ -92,7 +80,39 @@ def workspace_with_project(workspace: Path, git_repo: Path) -> tuple[Path, Path]
         "    role: primary\n"
     )
 
-    return workspace, target
+    # Create bare clone at github/test-owner/test-repo.git
+    bare = workspace / "github" / "test-owner" / "test-repo.git"
+    bare.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "clone", "--bare", str(git_repo), str(bare)],
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(bare), "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*"],
+        capture_output=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(bare), "fetch", "origin"],
+        capture_output=True,
+        check=True,
+    )
+
+    # Create default workspace with worktree
+    ws_dir = workspace / "projects" / "test-project" / "workspaces" / "default"
+    wt_dest = ws_dir / "github" / "test-owner" / "test-repo"
+    wt_dest.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            "git", "-C", str(bare), "worktree", "add", str(wt_dest),
+            "-b", "default/main", "--track", "origin/main",
+        ],
+        capture_output=True,
+        check=True,
+    )
+
+    return workspace, wt_dest
 
 
 @pytest.fixture

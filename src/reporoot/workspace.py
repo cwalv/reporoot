@@ -132,6 +132,27 @@ def infer_context(cwd: Path | None = None) -> WorkspaceContext:
     return WorkspaceContext(root=root, project=parts[0], workspace=None)
 
 
+def require_context(
+    *,
+    project: str | None = None,
+    workspace: str | None = None,
+) -> WorkspaceContext:
+    """Resolve root, project, and workspace — raising if project is unknown.
+
+    Uses CWD inference as a base, with optional overrides.  If no workspace
+    is provided or inferred, falls back to the project's configured
+    ``default_workspace``.
+    """
+    ctx = infer_context()
+    proj = project or ctx.project
+    if proj is None:
+        raise SystemExit(
+            "fatal: cannot determine project (cd into a workspace or use --project)"
+        )
+    ws = workspace or ctx.workspace or default_workspace_name(ctx.root, proj)
+    return WorkspaceContext(root=ctx.root, project=proj, workspace=ws)
+
+
 # --- Project / workspace paths ---
 
 

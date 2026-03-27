@@ -3,19 +3,21 @@
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 
 import pytest
 
 from reporoot.git import worktree_list
 from reporoot.remove import run
-from reporoot.workspace import read_repos
+from reporoot.workspace import bare_repo_path, read_repos
 
 
 class TestRemove:
     def test_remove_existing_repo(self, workspace_with_project: tuple[Path, Path]):
-        workspace, repo = workspace_with_project
-        os.chdir(workspace / "projects" / "test-project")
+        workspace, wt = workspace_with_project
+        ws_dir = workspace / "projects" / "test-project" / "workspaces" / "default"
+        os.chdir(ws_dir)
 
         repos_file = workspace / "projects" / "test-project" / "reporoot.yaml"
         assert "github/test-owner/test-repo" in read_repos(repos_file)
@@ -23,23 +25,31 @@ class TestRemove:
         run(path="github/test-owner/test-repo")
 
         assert "github/test-owner/test-repo" not in read_repos(repos_file)
-        # Clone should still be on disk
-        assert repo.exists()
+        # Worktree should be removed
+        assert not wt.exists()
+        # Bare repo should still exist (shared resource)
+        bare = bare_repo_path(workspace, "github/test-owner/test-repo")
+        assert bare.exists()
 
     def test_remove_with_delete(self, workspace_with_project: tuple[Path, Path]):
-        workspace, repo = workspace_with_project
-        os.chdir(workspace / "projects" / "test-project")
+        workspace, wt = workspace_with_project
+        ws_dir = workspace / "projects" / "test-project" / "workspaces" / "default"
+        os.chdir(ws_dir)
 
-        assert repo.exists()
+        assert wt.exists()
         run(path="github/test-owner/test-repo", delete=True, force=True)
 
         repos_file = workspace / "projects" / "test-project" / "reporoot.yaml"
         assert "github/test-owner/test-repo" not in read_repos(repos_file)
-        assert not repo.exists()
+        # Both worktree and bare repo should be gone
+        assert not wt.exists()
+        bare = bare_repo_path(workspace, "github/test-owner/test-repo")
+        assert not bare.exists()
 
     def test_remove_nonexistent_path(self, workspace_with_project: tuple[Path, Path]):
         workspace, _ = workspace_with_project
-        os.chdir(workspace / "projects" / "test-project")
+        ws_dir = workspace / "projects" / "test-project" / "workspaces" / "default"
+        os.chdir(ws_dir)
 
         with pytest.raises(SystemExit, match="not found"):
             run(path="github/no-owner/no-repo")
@@ -47,7 +57,7 @@ class TestRemove:
     def test_remove_with_project_override(self, workspace: Path):
         os.chdir(workspace)
 
-        # Create two projects, each with a repo entry
+        # Create two projects, each with a repo entry and default workspace
         for name in ("alpha", "beta"):
             project_dir = workspace / "projects" / name
             project_dir.mkdir(parents=True)
@@ -59,6 +69,8 @@ class TestRemove:
                 "    version: main\n"
                 "    role: primary\n"
             )
+            ws_dir = project_dir / "workspaces" / "default"
+            ws_dir.mkdir(parents=True)
 
         # Remove from beta explicitly via --project
         run(path="github/test-owner/test-repo", project="beta")
@@ -71,16 +83,18 @@ class TestRemove:
         alpha_repos = read_repos(workspace / "projects" / "alpha" / "reporoot.yaml")
         assert "github/test-owner/test-repo" in alpha_repos
 
-    def test_remove_delete_not_on_disk(
+    def test_remove_delete_bare_not_on_disk(
         self, workspace_with_project: tuple[Path, Path], capsys: pytest.CaptureFixture[str]
     ):
-        workspace, repo = workspace_with_project
-        os.chdir(workspace / "projects" / "test-project")
+        workspace, wt = workspace_with_project
+        ws_dir = workspace / "projects" / "test-project" / "workspaces" / "default"
+        os.chdir(ws_dir)
 
-        # Manually remove the clone so --delete has nothing to delete
-        import shutil
-
-        shutil.rmtree(repo)
+        # Manually remove the bare repo so --delete has nothing to delete
+        bare = bare_repo_path(workspace, "github/test-owner/test-repo")
+        # Must remove worktree first (git requirement)
+        shutil.rmtree(wt)
+        shutil.rmtree(bare)
 
         run(path="github/test-owner/test-repo", delete=True, force=True)
 
@@ -88,6 +102,20 @@ class TestRemove:
         assert "github/test-owner/test-repo" not in read_repos(repos_file)
         captured = capsys.readouterr()
         assert "not on disk" in captured.out
+
+    def test_remove_from_project_dir_uses_default_workspace(self, workspace_with_project: tuple[Path, Path]):
+        """When CWD is the project directory, remove resolves to the default workspace."""
+        workspace, wt = workspace_with_project
+        os.chdir(workspace / "projects" / "test-project")
+
+        repos_file = workspace / "projects" / "test-project" / "reporoot.yaml"
+        assert "github/test-owner/test-repo" in read_repos(repos_file)
+
+        run(path="github/test-owner/test-repo")
+
+        assert "github/test-owner/test-repo" not in read_repos(repos_file)
+        # Worktree should be removed from the default workspace
+        assert not wt.exists()
 
 
 class TestRemoveBareRepo:
@@ -123,17 +151,3 @@ class TestRemoveBareRepo:
         # After removing, the bare repo should have no worktrees left
         worktrees = worktree_list(bare)
         assert len(worktrees) == 0
-
-    def test_remove_from_project_dir(self, workspace_with_project: tuple[Path, Path]):
-        """When CWD is the project directory (not a workspace), remove should still work."""
-        workspace, repo = workspace_with_project
-        os.chdir(workspace / "projects" / "test-project")
-
-        repos_file = workspace / "projects" / "test-project" / "reporoot.yaml"
-        assert "github/test-owner/test-repo" in read_repos(repos_file)
-
-        run(path="github/test-owner/test-repo")
-
-        assert "github/test-owner/test-repo" not in read_repos(repos_file)
-        # Clone should still be on disk (no --delete)
-        assert repo.exists()

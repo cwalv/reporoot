@@ -15,12 +15,12 @@ from reporoot.workspace import bare_repo_path, read_repos
 class TestAddFromLocal:
     def test_add_local_repo(self, workspace_with_project: tuple[Path, Path], git_repo: Path):
         workspace, _ = workspace_with_project
-        os.chdir(workspace / "projects" / "test-project")
+        ws_dir = workspace / "projects" / "test-project" / "workspaces" / "default"
+        os.chdir(ws_dir)
 
         # Create a second git repo to add
         second = git_repo.parent / "repo2"
         second.mkdir()
-        import subprocess
 
         subprocess.run(["git", "init"], cwd=second, capture_output=True, check=True)
         subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=second, capture_output=True, check=True)
@@ -36,9 +36,15 @@ class TestAddFromLocal:
         )
 
         run(source=str(second))
-        target = workspace / "github" / "other-owner" / "other-repo"
-        assert target.exists()
-        assert (target / "README.md").exists()
+
+        # Bare clone should exist
+        bare = bare_repo_path(workspace, "github/other-owner/other-repo")
+        assert bare.exists()
+
+        # Worktree should exist in the workspace
+        wt = ws_dir / "github" / "other-owner" / "other-repo"
+        assert wt.exists()
+        assert (wt / "README.md").exists()
 
         # Should be in active project's reporoot.yaml
         project_repos = read_repos(workspace / "projects" / "test-project" / "reporoot.yaml")
@@ -46,7 +52,8 @@ class TestAddFromLocal:
 
     def test_add_existing_repo_skips_clone(self, workspace_with_project: tuple[Path, Path]):
         workspace, repo = workspace_with_project
-        os.chdir(workspace / "projects" / "test-project")
+        ws_dir = workspace / "projects" / "test-project" / "workspaces" / "default"
+        os.chdir(ws_dir)
         # test-owner/test-repo already exists from fixture — should skip clone and register
         run(source="https://github.com/test-owner/test-repo.git", role="primary")
         project_repos = read_repos(workspace / "projects" / "test-project" / "reporoot.yaml")
@@ -59,9 +66,11 @@ class TestAddFromLocal:
 
     def test_add_with_project_override(self, workspace: Path, git_repo: Path):
         os.chdir(workspace)
-        # Create project dir
+        # Create project dir and workspace dir
         project_dir = workspace / "projects" / "myproject"
         project_dir.mkdir(parents=True)
+        ws_dir = workspace / "projects" / "myproject" / "workspaces" / "default"
+        ws_dir.mkdir(parents=True)
 
         run(source=str(git_repo), project="myproject", role="primary", note="our code")
 
@@ -125,10 +134,10 @@ class TestAddBareRepo:
         project_repos = read_repos(root / "projects" / "test-project" / "reporoot.yaml")
         assert "github/test-owner/test-repo" in project_repos
 
-    def test_add_regular_clone_from_project_dir(
+    def test_add_from_project_dir_uses_default_workspace(
         self, workspace_with_project: tuple[Path, Path], git_repo: Path
     ):
-        """When in a project dir (not a workspace), add should use the regular clone flow."""
+        """When in a project dir (not a workspace), add resolves to the default workspace."""
         workspace, _ = workspace_with_project
         os.chdir(workspace / "projects" / "test-project")
 
@@ -150,14 +159,15 @@ class TestAddBareRepo:
 
         run(source=str(second))
 
-        # Regular clone (not bare) should exist
-        target = workspace / "github" / "other-owner" / "other-repo"
-        assert target.exists()
-        assert (target / ".git").is_dir()  # regular clone, not bare
-
-        # No bare clone should exist
+        # Bare clone should exist (not a regular clone)
         bare = bare_repo_path(workspace, "github/other-owner/other-repo")
-        assert not bare.exists()
+        assert bare.exists()
+
+        # Worktree should be in the default workspace
+        ws_dir = workspace / "projects" / "test-project" / "workspaces" / "default"
+        wt = ws_dir / "github" / "other-owner" / "other-repo"
+        assert wt.exists()
+        assert (wt / "README.md").exists()
 
 
 class TestAddInvalidSource:
