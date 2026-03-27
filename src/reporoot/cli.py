@@ -154,6 +154,15 @@ def main(argv: list[str] | None = None) -> None:
     )
     check_p.add_argument("-v", "--verbose", action="store_true", help="Show each issue individually instead of counts")
 
+    # reporoot init
+    init_p = sub.add_parser(
+        "init",
+        help="Create a new project",
+        description="Create a new project directory with an empty reporoot.yaml.",
+        formatter_class=_raw,
+    )
+    init_p.add_argument("name", help="Project name (creates projects/{name}/)")
+
     # reporoot prime
     sub.add_parser(
         "prime",
@@ -243,6 +252,10 @@ def main(argv: list[str] | None = None) -> None:
         from reporoot.check import run
 
         run(verbose=args.verbose)
+    elif args.command == "init":
+        from reporoot.init import run
+
+        run(name=args.name)
     elif args.command == "prime":
         from reporoot.setup import prime
 
