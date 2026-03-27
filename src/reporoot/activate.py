@@ -26,7 +26,7 @@ from reporoot.workspace import (
 
 def workspace_run(
     project: str,
-    name: str = "default",
+    name: str | None = None,
     *,
     delete: bool = False,
     sync: bool = False,
@@ -37,7 +37,11 @@ def workspace_run(
     --delete: delete workspace and run integration deactivation.
     --sync: sync workspace worktrees with the project manifest.
     """
+    from reporoot.workspace import default_workspace_name
+
     root = find_root()
+    if name is None:
+        name = default_workspace_name(root, project)
 
     if delete:
         ws = workspace_dir(root, project, name)

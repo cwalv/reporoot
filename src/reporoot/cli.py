@@ -56,7 +56,7 @@ def main(argv: list[str] | None = None) -> None:
         formatter_class=_raw,
     )
     workspace_p.add_argument("project", help="Project name")
-    workspace_p.add_argument("name", nargs="?", default="default", help="Workspace name (default: 'default')")
+    workspace_p.add_argument("name", nargs="?", default=None, help="Workspace name (default: from reporoot.yaml or 'default')")
     workspace_p.add_argument("--delete", action="store_true", help="Delete the workspace")
     workspace_p.add_argument("--sync", action="store_true", help="Sync workspace with project manifest")
     workspace_p.add_argument("--list", action="store_true", dest="list_ws", help="List workspaces for the project")

@@ -136,7 +136,7 @@ def run(source: str) -> None:
     print()
     print(f"  creating default workspace for {project}")
     try:
-        ws = create_workspace(root, project, "default")
+        ws = create_workspace(root, project)
         print(f"  workspace ready: {ws}")
     except SystemExit:
         # Workspace may already exist (e.g., re-fetching an existing project)

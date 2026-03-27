@@ -8,6 +8,7 @@ from pathlib import Path
 
 REPOS_FILE = "reporoot.yaml"
 LOCK_FILE = "reporoot.lock"
+_DEFAULT_WORKSPACE = "default"
 
 
 def _is_workspace_dir(p: Path) -> bool:
@@ -144,8 +145,24 @@ def project_lock_file(root: Path, project: str) -> Path:
     return root / "projects" / project / LOCK_FILE
 
 
-def workspace_dir(root: Path, project: str, name: str = "default") -> Path:
-    """Return the workspace directory path."""
+def default_workspace_name(root: Path, project: str) -> str:
+    """Return the configured default workspace name for a project.
+
+    Reads the ``default_workspace`` key from the project's reporoot.yaml,
+    falling back to 'default'.
+    """
+    repos_file = project_repos_file(root, project)
+    data = read_repos_full(repos_file)
+    return data.get("default_workspace", _DEFAULT_WORKSPACE)
+
+
+def workspace_dir(root: Path, project: str, name: str | None = None) -> Path:
+    """Return the workspace directory path.
+
+    If *name* is None, uses the project's configured default workspace.
+    """
+    if name is None:
+        name = default_workspace_name(root, project)
     return root / "projects" / project / "workspaces" / name
 
 
@@ -169,7 +186,7 @@ def list_workspaces(root: Path, project: str) -> list[str]:
 # --- Workspace lifecycle ---
 
 
-def create_workspace(root: Path, project: str, name: str = "default") -> Path:
+def create_workspace(root: Path, project: str, name: str | None = None) -> Path:
     """Create a workspace with worktrees for all project repos.
 
     Creates the workspace directory and git worktrees from bare repos for
@@ -180,6 +197,8 @@ def create_workspace(root: Path, project: str, name: str = "default") -> Path:
     """
     from reporoot.git import run_git, worktree_add
 
+    if name is None:
+        name = default_workspace_name(root, project)
     ws = workspace_dir(root, project, name)
     if ws.exists():
         raise SystemExit(f"fatal: workspace '{name}' already exists for project '{project}'")

@@ -13,6 +13,7 @@ from reporoot.workspace import (
     append_entry,
     bare_repo_path,
     create_workspace,
+    default_workspace_name,
     delete_workspace,
     find_root,
     infer_context,
@@ -306,6 +307,30 @@ class TestWorkspacePaths:
     def test_bare_repo_path_deep(self, workspace: Path):
         result = bare_repo_path(workspace, "gitlab/org/sub/repo")
         assert result == workspace / "gitlab" / "org" / "sub" / "repo.git"
+
+
+class TestDefaultWorkspaceName:
+    def test_fallback_when_no_yaml(self, workspace: Path):
+        assert default_workspace_name(workspace, "myproject") == "default"
+
+    def test_fallback_when_not_configured(self, workspace: Path):
+        repos_file = workspace / "projects" / "myproject" / "reporoot.yaml"
+        repos_file.parent.mkdir(parents=True, exist_ok=True)
+        repos_file.write_text("repositories: {}\n")
+        assert default_workspace_name(workspace, "myproject") == "default"
+
+    def test_reads_from_yaml(self, workspace: Path):
+        repos_file = workspace / "projects" / "myproject" / "reporoot.yaml"
+        repos_file.parent.mkdir(parents=True, exist_ok=True)
+        repos_file.write_text("default_workspace: main\nrepositories: {}\n")
+        assert default_workspace_name(workspace, "myproject") == "main"
+
+    def test_workspace_dir_uses_configured_default(self, workspace: Path):
+        repos_file = workspace / "projects" / "myproject" / "reporoot.yaml"
+        repos_file.parent.mkdir(parents=True, exist_ok=True)
+        repos_file.write_text("default_workspace: dev\nrepositories: {}\n")
+        result = workspace_dir(workspace, "myproject")
+        assert result == workspace / "projects" / "myproject" / "workspaces" / "dev"
 
 
 class TestListWorkspaces:
