@@ -33,8 +33,19 @@ class GoWork:
     def deactivate(self, root: Path) -> None:
         self._remove(root / _FILE)
 
-    def check(self, ctx: IntegrationContext) -> list[Issue]:  # noqa: ARG002
-        return []
+    def check(self, ctx: IntegrationContext) -> list[Issue]:
+        issues: list[Issue] = []
+        for repo_path in sorted(ctx.all_repos_on_disk - set(ctx.repos)):
+            repo_dir = ctx.root / repo_path
+            if repo_dir.is_dir() and (repo_dir / "go.mod").exists():
+                issues.append(
+                    Issue(
+                        integration=self.name,
+                        message=f"{repo_path} has go.mod but is not in the project manifest",
+                        level="warning",
+                    )
+                )
+        return issues
 
     def _remove(self, path: Path) -> None:
         if path.exists():

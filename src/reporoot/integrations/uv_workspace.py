@@ -48,6 +48,16 @@ class UvWorkspace:
                     message="uv not found on PATH (needed for uv workspaces)",
                 )
             )
+        for repo_path in sorted(ctx.all_repos_on_disk - set(ctx.repos)):
+            repo_dir = ctx.root / repo_path
+            if repo_dir.is_dir() and (repo_dir / "pyproject.toml").exists():
+                issues.append(
+                    Issue(
+                        integration=self.name,
+                        message=f"{repo_path} has pyproject.toml but is not in the project manifest",
+                        level="warning",
+                    )
+                )
         return issues
 
     def _remove(self, path: Path) -> None:

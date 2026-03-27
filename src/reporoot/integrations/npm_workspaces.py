@@ -44,7 +44,6 @@ class NpmWorkspaces:
 
     def check(self, ctx: IntegrationContext) -> list[Issue]:
         issues: list[Issue] = []
-        # Check if npm is available
         node_paths = [p for p in ctx.repos if (ctx.root / p).is_dir() and (ctx.root / p / "package.json").exists()]
         if node_paths and not shutil.which("npm"):
             issues.append(
@@ -53,6 +52,17 @@ class NpmWorkspaces:
                     message="npm not found on PATH (needed for npm workspaces)",
                 )
             )
+        # Warn about repos on disk with package.json not in the project manifest
+        for repo_path in sorted(ctx.all_repos_on_disk - set(ctx.repos)):
+            repo_dir = ctx.root / repo_path
+            if repo_dir.is_dir() and (repo_dir / "package.json").exists():
+                issues.append(
+                    Issue(
+                        integration=self.name,
+                        message=f"{repo_path} has package.json but is not in the project manifest",
+                        level="warning",
+                    )
+                )
         return issues
 
     def _remove(self, path: Path) -> None:
