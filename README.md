@@ -94,7 +94,7 @@ Each workspace gets its own generated ecosystem files:
 | **Go** | `go.work` | `import "myorg/shared"` resolves locally |
 | **Python** (uv) | `pyproject.toml` with `[tool.uv.workspace]` | editable installs across repos |
 | **gita** | `.gita/` config | `gita ll`, `gita super pull`, role-based groups |
-| **VS Code** | `{project}.code-workspace` | single-root workspace, non-project repos hidden |
+| **VS Code** | `{project}.code-workspace` | single-root workspace with git repo detection |
 
 Each integration auto-detects relevant repos (has `package.json`? include in npm workspaces) and skips gracefully if the tool isn't installed.
 
@@ -151,14 +151,12 @@ reporoot workspace web-app agent-42  # isolated workspace for an agent
 | `reporoot workspace {project} [name] --sync` | Sync workspace worktrees with manifest |
 | `reporoot workspace {project} --list` | List workspaces for a project |
 | `reporoot fetch {source}` | Clone a project and all its repos, create default workspace |
-| `reporoot add {url\|path}` | Clone a repo and register it in the active project |
-| `reporoot remove {path}` | Remove a repo from the active project |
-| `reporoot lock` | Snapshot repo versions for the active project |
+| `reporoot add {url\|path}` | Clone a repo and register it in the current project |
+| `reporoot remove {path}` | Remove a repo from the current project |
+| `reporoot lock` | Snapshot repo versions from the current workspace |
 | `reporoot lock-all` | Snapshot repo versions for all projects |
 | `reporoot check` | Run convention enforcement checks |
-| `reporoot resolve` | Print the workspace root path |
-| `reporoot activate {project}` | (compat) Set active project, run integrations at root level |
-| `reporoot deactivate` | (compat) Remove derived files, clear active project |
+| `reporoot resolve` | Print the root or workspace path |
 
 ## Docs
 

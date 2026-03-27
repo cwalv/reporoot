@@ -6,7 +6,7 @@ nav_order: 3
 
 Rather than hardcoding knowledge of each ecosystem and tool, `reporoot` uses **integrations** — pluggable units that each know how to derive config for one tool from the repo list. Each integration participates in two hook points:
 
-- **Activation hooks** (`reporoot activate`) — generate config files, run install commands, or do nothing. This is the write path.
+- **Activation hooks** (run during workspace creation, sync, add, remove) — generate config files, run install commands, or do nothing. This is the write path.
 - **Check hooks** (`reporoot check`) — read-only inspection. Verify the environment is healthy, report missing tools, stale config, etc.
 
 ## How integrations work
@@ -16,16 +16,16 @@ Each integration provides:
 1. **A name** — unique identifier (e.g., `npm-workspaces`).
 2. **A default enabled state** — whether the integration runs without explicit opt-in.
 3. **Activation logic** — receives the resolved repo list (paths, URLs, roles) and its config; generates files, runs commands, or does nothing.
-4. **Deactivation logic** — removes generated files. Called by `reporoot deactivate` and at the start of `reporoot activate` (clean before regenerate).
+4. **Deactivation logic** — removes generated files. Called during workspace deletion.
 5. **Check logic** — receives the same inputs; returns issues and warnings without changing state.
 
-`reporoot activate` first cleans up — running every integration's deactivation hook to remove previously generated files (regardless of config). Then it resolves the repo list from the project's `reporoot.yaml` and calls every enabled integration's activation hook. Each decides what to do — auto-detect relevant repos, generate config, run install commands, or skip entirely. `reporoot deactivate` runs only the cleanup step.
+When a workspace is created or synced, integrations are run: the deactivation hook cleans up first, then the activation hook generates fresh config. Each integration auto-detects relevant repos — if none are found, it does nothing.
 
 `reporoot check` runs check hooks across all enabled integrations as part of its broader convention audit.
 
-Ecosystem integrations auto-detect repos with the relevant manifest file. If none are found, they do nothing — no config file is generated, no error is raised. Generated workspace files are derived state, not committed — regenerated on `reporoot activate` or `reporoot add`.
+Ecosystem integrations auto-detect repos with the relevant manifest file. If none are found, they do nothing — no config file is generated, no error is raised. Generated workspace files are derived state, not committed — regenerated on workspace creation, sync, or `reporoot add`.
 
-Some integrations also run external tools (`npm install`, `uv sync`) that create their own persistent state (`.venv/`, `node_modules/`, lock files). These are managed by the ecosystem tool, not by reporoot — `reporoot deactivate` removes the generated config files but does not clean up tool state. Use `reporoot deactivate --hard` to also remove tool state and other non-repo content at root. If tool state gets corrupted or out of sync, re-running `reporoot activate` regenerates config and re-runs install commands.
+Some integrations also run external tools (`npm install`, `uv sync`) that create their own persistent state (`.venv/`, `node_modules/`, lock files). These are managed by the ecosystem tool, not by reporoot. If tool state gets corrupted or out of sync, `reporoot workspace <project> --sync` regenerates config and re-runs install commands.
 
 ### Hook configuration in `reporoot.yaml`
 
@@ -51,7 +51,7 @@ integrations:
 | `go-work` | yes | repos with `go.mod` | `go.work` | — |
 | `uv-workspace` | yes | repos with `pyproject.toml` | root `pyproject.toml` | `uv sync` |
 | `gita` | yes | all repos | `.gita/` directory | — |
-| `vscode-workspace` | yes | all repos | `{project}.code-workspace` + symlink | — |
+| `vscode-workspace` | yes | all repos | `{project}.code-workspace` | — |
 
 ## npm-workspaces
 
@@ -73,7 +73,7 @@ Generates a root `package.json` with a `workspaces` array listing every project 
 
 ### Deactivation
 
-Removes the root `package.json`. Does not remove `node_modules/` — use `reporoot deactivate --hard` for that.
+Removes the workspace `package.json`. Does not remove `node_modules/`.
 
 ### Check
 
@@ -119,7 +119,7 @@ members = [
 
 ### Deactivation
 
-Removes the root `pyproject.toml`. Does not remove `.venv/` — use `reporoot deactivate --hard` for that.
+Removes the workspace `pyproject.toml`. Does not remove `.venv/`.
 
 ### Check
 
@@ -129,14 +129,14 @@ Warns if repos with `pyproject.toml` exist but `uv` is not on PATH.
 
 [gita](https://github.com/nosarthur/gita) provides the multi-repo dashboard (`gita ll`), cross-repo git delegation (`gita super`), cross-repo shell commands (`gita shell`), groups, and context scoping. Rather than reimplement these in `reporoot`, we use gita directly via this integration.
 
-The activation hook generates gita's config files into a reporoot-local `.gita/` directory, scoped to the active project's repos. Point gita at this directory via `GITA_PROJECT_HOME`:
+The activation hook generates gita's config files into a `gita/` directory inside the workspace, scoped to the project's repos. Point gita at this directory via `GITA_PROJECT_HOME`:
 
 ```bash
-# .envrc at reporoot/
-export GITA_PROJECT_HOME="$PWD/.gita"
+# .envrc in workspace dir
+export GITA_PROJECT_HOME="$PWD/gita"
 ```
 
-`GITA_PROJECT_HOME` replaces (not supplements) gita's default config directory. Switching projects regenerates both files — gita commands are always scoped to the active project's repos with no manual sync.
+`GITA_PROJECT_HOME` replaces (not supplements) gita's default config directory. Each workspace gets its own gita config — gita commands are always scoped to the current workspace's repos.
 
 For build/test/lint across packages, prefer the ecosystem's own workspace commands (`npm run --workspaces test`, `cargo test --workspace`) — they understand package dependency ordering. gita's value is at the **git layer**: status, bulk fetch/pull, seeing which repos have uncommitted work.
 
@@ -186,39 +186,37 @@ gita has its own serialization format (`gita freeze` outputs CSV with URL, name,
 
 ## vscode-workspace
 
-Generates a `{project}.code-workspace` file into the project's `.reporoot-derived/` directory and symlinks it to the workspace root. Uses a single-root workspace (the reporoot directory) with `files.exclude` to hide repos and project directories not in the active project. This keeps search and glob behavior simple — no multi-root workspace complications — while showing only what's relevant in the file explorer.
+Generates a `{project}.code-workspace` file directly in the workspace directory. Uses a single-root workspace (the workspace directory itself) with git settings configured for the multi-repo layout.
 
-The file is named after the project (e.g., `web-app.code-workspace`), making the active project visible in the VS Code title bar. Switching projects removes the old symlink and creates a new one.
+The file is named after the project (e.g., `web-app.code-workspace`), making the project visible in the VS Code title bar.
 
 ### Generated file
 
 ```json
 {
   "folders": [
-    { "path": ".", "name": "web-app" }
+    { "path": ".", "name": "workspace (default)" }
   ],
   "settings": {
-    "files.exclude": {
-      ".*": true,
-      "github/nickel-io": true,
-      "projects/mobile-app": true
-    }
+    "git.autoRepositoryDetection": "subFolders",
+    "git.repositoryScanMaxDepth": 3
   }
 }
 ```
 
-- **Single root folder** at `"."` — paths are relative to the symlink at the workspace root, not the real file location in `.reporoot-derived/`.
-- **`".*"` excludes dotfiles/dirs** — `.git`, `.venv`, `.reporoot-active`, etc.
-- **Owner/registry collapsing** — when all repos under an owner are excluded, the owner directory is excluded instead of listing individual repos. Same at the registry level: if all owners under a registry are excluded, the registry itself is excluded.
-- **Merge on activate** — only `folders` and `settings.files.exclude` are replaced. Other keys (extensions, launch configs, other settings) are preserved, so user customizations survive re-activation.
+- **Single root folder** at `"."` — the workspace directory.
+- **Folder name** includes the workspace name (e.g., `"workspace (default)"`, `"workspace (review-pr-42)"`).
+- **`git.autoRepositoryDetection: subFolders`** prevents VS Code from walking up to the parent repo and greying out the workspace dir (which is gitignored as a worktree).
+- **`git.repositoryScanMaxDepth: 3`** ensures VS Code discovers repos at the `registry/owner/repo` depth.
+- **Merge on activate** — only `folders` and managed `settings` keys are replaced. Other keys (extensions, launch configs, other settings) are preserved, so user customizations survive re-activation.
 
 ### Deactivation
 
-Removes the symlink at the workspace root. The derived file in `.reporoot-derived/` is preserved (it may contain user customizations).
+Removes any `.code-workspace` files from the workspace directory.
 
 ### Check
 
-Validates that the symlink exists at the workspace root and points to the correct file in `.reporoot-derived/`.
+Validates that the `.code-workspace` file exists as a regular file (not a symlink) in the workspace directory.
 
 ## Build orchestration
 
@@ -267,6 +265,6 @@ class Integration(Protocol):
     def check(self, ctx: IntegrationContext) -> list[Issue]: ...
 ```
 
-`IntegrationContext` provides the workspace root, active project name, resolved repo entries (with paths, URLs, roles), per-integration config from `reporoot.yaml`, all repos found on disk across registries (`all_repos_on_disk`), and all project paths (`all_project_paths`). The disk-scan fields are computed once and shared across integrations.
+`IntegrationContext` provides the workspace directory, project name, workspace name, resolved repo entries (with paths, URLs, roles), per-integration config from `reporoot.yaml`, all repos found on disk across registries (`all_repos_on_disk`), and all project paths (`all_project_paths`). The disk-scan fields are computed once and shared across integrations.
 
 New integrations are registered in `registry.py`.
